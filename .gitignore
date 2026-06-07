@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.env
+
+# Project specific
+data/*
+!data/.gitkeep
+
+# IDEs and OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
