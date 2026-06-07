@@ -2,14 +2,32 @@
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Virtual environments
 .venv/
 venv/
 ENV/
-.env
 
-# Project specific
+# Environment files
+.env
+.env.local
+
+# Project generated data
 data/*
 !data/.gitkeep
+!data/raw/
+!data/raw/**
+!data/chunks/
+!data/chunks/.gitkeep
+!data/vector_db/
+!data/vector_db/.gitkeep
+!data/graph/
+!data/graph/.gitkeep
+!data/eval/
+!data/eval/.gitkeep
+
+# Logs
+*.log
 
 # IDEs and OS
 .vscode/
