@@ -66,3 +66,27 @@ academic-policy-graph-rag/
    ```bash
    pytest
    ```
+
+## Academic Policy QA API
+
+### 1. Build Generated Data
+Before querying the QA pipeline or API, ensure you build the generated data files:
+```bash
+python scripts/01_build_policy_chunks.py
+python scripts/02_annotate_policy_chunks.py
+python scripts/03_build_policy_graph.py
+```
+
+### 2. Run API Server
+Start the FastAPI server:
+```bash
+uvicorn app.main:app --reload
+```
+
+### 3. Example Query
+Query the API endpoint with a POST request:
+```bash
+curl -X POST http://localhost:8000/policy/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Điều kiện xét tốt nghiệp là gì?","top_k":5}'
+```
