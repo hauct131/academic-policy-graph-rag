@@ -93,6 +93,8 @@ Run the evaluation test suite against the target QA scenarios:
 python scripts/08_eval_policy_cases.py --verbose
 ```
 
+The eval dataset contains at least 30 cases covering: graduation (điều kiện xét tốt nghiệp, cấp bằng, hạng tốt nghiệp, GPA, tín chỉ), course exemption (điều kiện miễn môn, hồ sơ, 50% giới hạn, đề cương, thủ tục, thời hạn), foreign language (IELTS, TOEIC, Cambridge, thời hạn chứng chỉ, kỳ thi đầu ra, ngoại ngữ hai), course registration (đăng ký, điều chỉnh), retake and grade improvement, academic standing (cảnh báo, buộc thôi học), and temporal/deadline notice warnings.
+
 ### 5. Run Unit & Integration Tests
 Run pytest to execute the full validation suite:
 ```bash

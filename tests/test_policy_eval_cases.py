@@ -25,10 +25,10 @@ class TestPolicyEvalCases:
     _CHUNKS_PATH = Path(__file__).parent.parent / "data" / "chunks" / "policy_chunks.annotated.jsonl"
     _CONFIG_PATH = Path(__file__).parent.parent / "domains" / "ou_academic_policy_v1" / "domain.json"
 
-    def test_loads_at_least_9_cases(self):
+    def test_loads_at_least_30_cases(self):
         assert self._CASES_PATH.exists()
         cases = load_cases(self._CASES_PATH)
-        assert len(cases) >= 9
+        assert len(cases) >= 30
 
     def test_every_case_has_id_and_question(self):
         cases = load_cases(self._CASES_PATH)
