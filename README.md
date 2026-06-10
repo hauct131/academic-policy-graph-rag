@@ -22,7 +22,7 @@ academic-policy-graph-rag/
 ├── core/                     # Domain-independent Graph RAG pipeline logic
 │   └── __init__.py
 ├── domains/                  # Academic policy domain-specific configurations
-│   └── academic_policy_v1/   # V1 policy definitions, schemas, and prompts
+│   └── ou_academic_policy_v1/   # V1 policy definitions, schemas, and prompts
 │       └── __init__.py
 ├── scripts/                  # Data ingestion and pipeline utilities
 │   └── __init__.py
@@ -37,7 +37,7 @@ academic-policy-graph-rag/
 └── AGENTS.md                 # Project-specific guidelines for AI coding assistants
 ```
 
-## Setup & Installation
+## Quickstart & Setup
 
 1. **Set up virtual environment:**
    ```bash
@@ -50,43 +50,57 @@ academic-policy-graph-rag/
    pip install -r requirements-api.txt
    ```
 
-3. **Configure environment:**
+3. **Build generated data (Ingestion Pipeline):**
    ```bash
-   cp .env.example .env
+   python scripts/01_build_policy_chunks.py
+   python scripts/02_annotate_policy_chunks.py
+   python scripts/03_build_policy_graph.py
    ```
 
-4. **Run the API server:**
-   ```bash
-   uvicorn app.main:app --reload
-   ```
-   The API will be available at `http://localhost:8000`. You can check the health endpoint at:
-   `http://localhost:8000/api/v1/graph-rag/health`
+## Running the Assistant
 
-5. **Run tests:**
-   ```bash
-   pytest
-   ```
-
-## Academic Policy QA API
-
-### 1. Build Generated Data
-Before querying the QA pipeline or API, ensure you build the generated data files:
+### 1. Run CLI QA Query
+Query the pipeline directly via terminal command:
 ```bash
-python scripts/01_build_policy_chunks.py
-python scripts/02_annotate_policy_chunks.py
-python scripts/03_build_policy_graph.py
+python scripts/06_answer_policy_question.py --question "Điều kiện xét tốt nghiệp là gì?"
 ```
 
 ### 2. Run API Server
-Start the FastAPI server:
+Start the FastAPI server locally:
 ```bash
 uvicorn app.main:app --reload
 ```
+API endpoints:
+- Health Check: `GET http://localhost:8000/api/v1/graph-rag/health`
+- Ask Question: `POST http://localhost:8000/policy/ask`
 
-### 3. Example Query
-Query the API endpoint with a POST request:
+Example `curl` query:
 ```bash
 curl -X POST http://localhost:8000/policy/ask \
   -H "Content-Type: application/json" \
   -d '{"question":"Điều kiện xét tốt nghiệp là gì?","top_k":5}'
 ```
+
+### 3. Run Smoke Demo
+Run a quick deterministic query validation script (without starting the API server):
+```bash
+python scripts/09_smoke_policy_qa.py
+```
+
+### 4. Run Evaluations
+Run the evaluation test suite against the target QA scenarios:
+```bash
+python scripts/08_eval_policy_cases.py --verbose
+```
+
+### 5. Run Unit & Integration Tests
+Run pytest to execute the full validation suite:
+```bash
+pytest
+```
+
+## Documentation Links
+For detailed guides on deployment, updates, and architecture:
+- [Production Readiness Checklist](docs/PRODUCTION_READINESS_CHECKLIST.md)
+- [Data Update Playbook](docs/DATA_UPDATE_PLAYBOOK.md)
+- [AI Agent Guidelines](AGENTS.md)
