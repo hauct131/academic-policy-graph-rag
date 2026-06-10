@@ -39,12 +39,21 @@ except ImportError:
 
 select_sources_for_issue = _selector.select_sources_for_issue
 
+try:
+    _domain = importlib.import_module("policy_domain_config")
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+    _domain = importlib.import_module("policy_domain_config")
+
+load_domain_config = _domain.load_domain_config
+infer_issues_from_domain = _domain.infer_issues_from_domain
+
 
 # ---------------------------------------------------------------------------
 # Issue inference
 # ---------------------------------------------------------------------------
 
-def infer_case_issues(question: str) -> list[dict[str, Any]]:
+def infer_case_issues(question: str, domain_config: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """
     Infer academic policy issues from the user question.
     Returns a list of dicts representing issues with:
@@ -53,6 +62,9 @@ def infer_case_issues(question: str) -> list[dict[str, Any]]:
       - query (search query to run)
       - label (Vietnamese title)
     """
+    if domain_config is not None:
+        return infer_issues_from_domain(question, domain_config)
+
     norm_q = normalize_text(question)
     issues = []
 
@@ -132,8 +144,27 @@ def infer_case_issues(question: str) -> list[dict[str, Any]]:
 # Answer templates
 # ---------------------------------------------------------------------------
 
-def get_vietnamese_answer(issue_type: str, query: str) -> str:
+def get_vietnamese_answer(issue_type: str, query: str, domain_config: dict[str, Any] | None = None) -> str:
     """Generate static cautious response template based on issue type."""
+    if domain_config is not None:
+        defs = domain_config.get("issue_definitions", [])
+        target_item = None
+        for item in defs:
+            if item.get("issue_type") == issue_type:
+                target_item = item
+                break
+        if target_item:
+            norm_q = normalize_text(query)
+            overridden_template = None
+            for o_cond in target_item.get("answer_template_override", []):
+                cond_kws = [normalize_text(ckw) for ckw in o_cond.get("condition_keywords", [])]
+                if any(ckw in norm_q for ckw in cond_kws):
+                    overridden_template = o_cond.get("answer_template")
+                    break
+            if overridden_template:
+                return overridden_template
+            return target_item.get("answer_template", "")
+
     if issue_type == "graduation":
         return (
             "Dựa trên các đoạn tìm được, căn cứ chính là Điều 27 về điều kiện xét tốt nghiệp và công nhận tốt nghiệp. "
@@ -183,9 +214,12 @@ def get_vietnamese_answer(issue_type: str, query: str) -> str:
 # Answer formulation
 # ---------------------------------------------------------------------------
 
-def asks_about_current_semester(question: str) -> bool:
+def asks_about_current_semester(question: str, domain_config: dict[str, Any] | None = None) -> bool:
     norm = normalize_text(question)
-    kws = ["hoc ky nay", "hoc ky hien tai", "deadline", "thoi han", "han chot", "khi nao", "bao gio", "lich thi", "lich hoc"]
+    if domain_config is not None and "current_semester_keywords" in domain_config:
+        kws = [normalize_text(kw) for kw in domain_config["current_semester_keywords"]]
+    else:
+        kws = ["hoc ky nay", "hoc ky hien tai", "deadline", "thoi han", "han chot", "khi nao", "bao gio", "lich thi", "lich hoc"]
     return any(kw in norm for kw in kws)
 
 
@@ -199,12 +233,13 @@ def answer_question(
     risk_tag_filter: str | None = None,
     graph_bonus_map: dict[str, float] | None = None,
     show_evidence_text: bool = False,
+    domain_config: dict[str, Any] | None = None,
 ) -> str:
     """
     Given a question and the chunks list, infer issues, retrieve evidence,
     and format the structured Vietnamese QA answer.
     """
-    issues = infer_case_issues(question)
+    issues = infer_case_issues(question, domain_config=domain_config)
 
     # Gather evidence for each issue
     evidence_by_issue = {}
@@ -259,7 +294,7 @@ def answer_question(
         lines.append(f"## {idx}. {issue['label']}")
         lines.append("")
         
-        answer_text = get_vietnamese_answer(issue["issue_type"], issue["query"])
+        answer_text = get_vietnamese_answer(issue["issue_type"], issue["query"], domain_config=domain_config)
         lines.append(answer_text)
         lines.append("")
 
@@ -306,10 +341,16 @@ def answer_question(
     # 5. Formulate suggestions
     lines.append("# Gợi ý kiểm tra thêm")
     lines.append("")
-    if asks_about_current_semester(question):
-        lines.append("Dữ liệu hiện có chủ yếu là quy định chung, chưa có thông báo học kỳ hiện tại nên chưa thể kết luận thời hạn cụ thể.")
+    if asks_about_current_semester(question, domain_config=domain_config):
+        notice = "Dữ liệu hiện có chủ yếu là quy định chung, chưa có thông báo học kỳ hiện tại nên chưa thể kết luận thời hạn cụ thể."
+        if domain_config and "current_semester_missing_notice_message" in domain_config:
+            notice = domain_config["current_semester_missing_notice_message"]
+        lines.append(notice)
     else:
-        lines.append("Sinh viên nên đối chiếu kỹ điều kiện của mình với các căn cứ nêu trên.")
+        disclaimer = "Sinh viên nên đối chiếu kỹ điều kiện của mình với các căn cứ nêu trên."
+        if domain_config and "fallback_scope_disclaimer" in domain_config:
+            disclaimer = domain_config["fallback_scope_disclaimer"]
+        lines.append(disclaimer)
     
     lines.append("Khuyến nghị liên hệ Phòng Quản lý đào tạo (Phòng QLĐT) hoặc Cố vấn học tập để nhận thông tin cập nhật mới nhất cho học kỳ hiện tại.")
 
@@ -371,6 +412,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Show full evidence text in details instead of preview",
     )
+    parser.add_argument(
+        "--domain-config",
+        default="domains/ou_academic_policy_v1/domain.json",
+        help="Path to domain configuration JSON",
+    )
     return parser.parse_args(argv)
 
 
@@ -390,6 +436,12 @@ def main(argv: list[str] | None = None) -> None:
     # Graph bonus map
     graph_bonus_map = load_graph_expansion(args.question, nodes_path, edges_path)
 
+    # Load domain config if path exists
+    domain_config = None
+    config_path = Path(args.domain_config)
+    if config_path.exists():
+        domain_config = load_domain_config(config_path)
+
     # Generate answer
     ans = answer_question(
         question=args.question,
@@ -401,6 +453,7 @@ def main(argv: list[str] | None = None) -> None:
         risk_tag_filter=args.risk_tag,
         graph_bonus_map=graph_bonus_map,
         show_evidence_text=args.show_evidence_text,
+        domain_config=domain_config,
     )
 
     print(ans)

@@ -260,3 +260,22 @@ class TestIntegrationQA:
         assert "Căn cứ chính" in ans
         assert "# Căn cứ chi tiết" in ans
         assert len(ans) > 100
+
+    def test_integration_with_domain_config_parameter(self):
+        chunks = self._load_real_chunks()
+        config_path = Path(__file__).parent.parent / "domains" / "ou_academic_policy_v1" / "domain.json"
+        
+        import policy_domain_config
+        config = policy_domain_config.load_domain_config(config_path)
+        
+        ans = answer_question("Miễn môn học cần hồ sơ gì?", chunks, domain_config=config)
+        assert "Căn cứ chính" in ans
+        
+        lines = ans.splitlines()
+        cc_start = -1
+        for idx, line in enumerate(lines):
+            if "Căn cứ chính:" in line:
+                cc_start = idx
+                break
+        assert cc_start != -1
+        assert "Điều 5" in lines[cc_start + 1]
