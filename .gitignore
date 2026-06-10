@@ -43,3 +43,7 @@ data/raw/ocr/**
 # Generated chunk outputs
 data/chunks/*
 !data/chunks/.gitkeep
+
+# Generated graph outputs
+data/graph/*
+!data/graph/.gitkeep
