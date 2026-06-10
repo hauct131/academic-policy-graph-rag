@@ -48,6 +48,15 @@ except ImportError:
 load_domain_config = _domain.load_domain_config
 infer_issues_from_domain = _domain.infer_issues_from_domain
 
+try:
+    _reg = importlib.import_module("policy_document_registry")
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+    _reg = importlib.import_module("policy_document_registry")
+
+load_document_registry = _reg.load_document_registry
+should_warn_missing_current_notice = _reg.should_warn_missing_current_notice
+
 
 # ---------------------------------------------------------------------------
 # Issue inference
@@ -234,6 +243,7 @@ def answer_question(
     graph_bonus_map: dict[str, float] | None = None,
     show_evidence_text: bool = False,
     domain_config: dict[str, Any] | None = None,
+    document_registry: list[dict[str, Any]] | None = None,
 ) -> str:
     """
     Given a question and the chunks list, infer issues, retrieve evidence,
@@ -341,7 +351,20 @@ def answer_question(
     # 5. Formulate suggestions
     lines.append("# Gợi ý kiểm tra thêm")
     lines.append("")
-    if asks_about_current_semester(question, domain_config=domain_config):
+    warn_missing = False
+    if document_registry is not None:
+        p_area = None
+        if issues:
+            p_area = issues[0].get("policy_area")
+        warn_missing = should_warn_missing_current_notice(
+            question=question,
+            records=document_registry,
+            policy_area=p_area
+        )
+    else:
+        warn_missing = asks_about_current_semester(question, domain_config=domain_config)
+
+    if warn_missing:
         notice = "Dữ liệu hiện có chủ yếu là quy định chung, chưa có thông báo học kỳ hiện tại nên chưa thể kết luận thời hạn cụ thể."
         if domain_config and "current_semester_missing_notice_message" in domain_config:
             notice = domain_config["current_semester_missing_notice_message"]
@@ -417,6 +440,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="domains/ou_academic_policy_v1/domain.json",
         help="Path to domain configuration JSON",
     )
+    parser.add_argument(
+        "--document-registry",
+        default="domains/ou_academic_policy_v1/document_registry.jsonl",
+        help="Path to document registry JSONL",
+    )
     return parser.parse_args(argv)
 
 
@@ -442,6 +470,12 @@ def main(argv: list[str] | None = None) -> None:
     if config_path.exists():
         domain_config = load_domain_config(config_path)
 
+    # Load document registry if path exists
+    document_registry = None
+    registry_path = Path(args.document_registry)
+    if registry_path.exists():
+        document_registry = load_document_registry(registry_path)
+
     # Generate answer
     ans = answer_question(
         question=args.question,
@@ -454,6 +488,7 @@ def main(argv: list[str] | None = None) -> None:
         graph_bonus_map=graph_bonus_map,
         show_evidence_text=args.show_evidence_text,
         domain_config=domain_config,
+        document_registry=document_registry,
     )
 
     print(ans)

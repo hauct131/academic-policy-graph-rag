@@ -279,3 +279,16 @@ class TestIntegrationQA:
                 break
         assert cc_start != -1
         assert "Điều 5" in lines[cc_start + 1]
+
+    def test_integration_with_document_registry_parameter(self):
+        chunks = self._load_real_chunks()
+        registry_path = Path(__file__).parent.parent / "domains" / "ou_academic_policy_v1" / "document_registry.jsonl"
+        
+        import policy_document_registry
+        registry = policy_document_registry.load_document_registry(registry_path)
+        
+        ans = answer_question("Học kỳ này khi nào nộp hồ sơ miễn môn?", chunks, document_registry=registry)
+        assert "Căn cứ chính" in ans
+        
+        assert ("chưa có thông báo học kỳ hiện tại" in ans.lower() 
+                or "chưa thể kết luận thời hạn cụ thể" in ans.lower())
