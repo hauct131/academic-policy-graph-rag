@@ -113,7 +113,7 @@ Thực hiện xét miễn theo Quy định đào tạo môn Tin học văn phòn
 
 Hồ sơ xin miễn, giảm môn học gồm có:
 
-1. Đơn xin miễn môn học hoặc đơn xin giảm học phần thực hành môn Giáo dục thể chất; Giáo dục quốc phòng và an ninh. Đơn được phát tại Phòng Quản lý đào tạo hoặc tải về từ trang thông tin điện tử của Trường, chuyên trang Phòng Quản lý đào tạo, chuyên mục Các văn bản, biểu mẫu.
+1. Đơn xin miễn môn học hoặc đơn xin giảm học phần thực hành môn Giáo dục thể chất; Giáo dục quốc phòng và an ninh. Đơn được phát tại Phòng Quản lý đào tạo hoặc tải về từ trang thông tin điện tử http://www.ou.edu.vn, chuyên trang Phòng Quản lý đào tạo, chuyên mục Các văn bản, biểu mẫu.
 
 2. Bảng điểm in theo từng học kỳ hoặc đề cương môn học nếu có yêu cầu do cơ sở đào tạo sinh viên từng học cấp, hoặc các chứng chỉ Giáo dục quốc phòng, Giáo dục thể chất, Ngoại ngữ, Tin học phù hợp với quy định.
 
