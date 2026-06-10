@@ -35,3 +35,7 @@ data/*
 .DS_Store
 *.swp
 *.swo
+
+# Intermediate OCR outputs
+data/raw/ocr/
+data/raw/ocr/**
