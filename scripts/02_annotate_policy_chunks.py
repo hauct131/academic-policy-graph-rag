@@ -180,15 +180,27 @@ def annotate_chunk(chunk: dict[str, Any]) -> dict[str, Any]:
 
     # -----------------------------------------------------------------------
     # E. Graduation
+    # Trigger ONLY on genuine graduation context — not on bare GDTC/GDQP mentions
+    # that appear in course-exemption or other policy chunks.
+    # Additionally, Chuơng VIII (Sections 27-29) of the fulltime training regulation
+    # are always graduation sections by definition.
     # -----------------------------------------------------------------------
-    if has(
+    section_number = str(chunk.get("section_number", "")).strip()
+    doc_id_val     = str(chunk.get("doc_id", "")).strip()
+
+    is_fulltime_graduation_section = (
+        doc_id_val == "ou_fulltime_credit_training_regulation_2016"
+        and section_number in {"27", "28", "29"}
+    )
+
+    _is_graduation = has(
         "xét tốt nghiệp",
         "công nhận tốt nghiệp",
         "điều kiện tốt nghiệp",
         "bằng tốt nghiệp",
-        "chứng chỉ giáo dục quốc phòng",
-        "giáo dục thể chất",
-    ):
+        "hội đồng xét tốt nghiệp",
+    ) or is_fulltime_graduation_section
+    if _is_graduation:
         add_unique(policy_area, "graduation")
         add_unique(action_tags, "graduation_audit")
 
@@ -201,6 +213,7 @@ def annotate_chunk(chunk: dict[str, Any]) -> dict[str, Any]:
         if has("tích lũy đủ số", "khối lượng", "số tín chỉ"):
             add_unique(requirement_tags, "credit_completion_required")
 
+        # Requirement tags for GDQP/GDTC only when already in graduation context
         if has("chứng chỉ giáo dục quốc phòng", "quốc phòng"):
             add_unique(requirement_tags, "national_defense_certificate_required")
 

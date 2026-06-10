@@ -34,30 +34,36 @@ write_jsonl = _mod.write_jsonl
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_chunk(text: str, section_title: str = "") -> dict:
-    """Build a minimal chunk dict for annotation testing."""
-    return {
-        "chunk_id": "test__dieu_0",
-        "doc_id": "test_doc",
-        "title": "Test",
-        "decision_no": "001",
-        "issued_date": "2023-01-01",
-        "institution": "OU",
+def _make_chunk(text: str, section_title: str = "", **kwargs) -> dict:
+    """Build a minimal chunk dict for annotation testing.
+
+    Extra keyword arguments override any default field, allowing tests to
+    set doc_id, section_number, etc. without duplicating the whole dict.
+    """
+    base = {
+        "chunk_id":       "test__dieu_0",
+        "doc_id":         "test_doc",
+        "title":          "Test",
+        "decision_no":    "001",
+        "issued_date":    "2023-01-01",
+        "institution":    "OU",
         "education_mode": "full_time",
-        "chapter_title": "",
-        "section_title": section_title,
+        "chapter_title":  "",
+        "section_title":  section_title,
         "section_number": "",
-        "chunk_type": "dieu",
-        "source_path": "test.md",
-        "source_pdf": "test.pdf",
-        "text": text,
-        "char_count": len(text),
-        "word_count": len(text.split()),
+        "chunk_type":     "dieu",
+        "source_path":    "test.md",
+        "source_pdf":     "test.pdf",
+        "text":           text,
+        "char_count":     len(text),
+        "word_count":     len(text.split()),
     }
+    base.update(kwargs)
+    return base
 
 
-def _annotated(text: str, section_title: str = "") -> dict:
-    return annotate_chunk(_make_chunk(text, section_title))
+def _annotated(text: str, section_title: str = "", **kwargs) -> dict:
+    return annotate_chunk(_make_chunk(text, section_title, **kwargs))
 
 
 # ---------------------------------------------------------------------------
@@ -202,15 +208,19 @@ class TestGraduation:
         assert "degree_conferral" in a["action_tags"]
 
     def test_quoc_phong_requirement(self):
+        """GDQP requirement tag fires only inside a graduation context."""
         a = _annotated(
             "Sinh viên phải có chứng chỉ giáo dục quốc phòng để được xét tốt nghiệp."
         )
+        assert "graduation" in a["policy_area"], "Should be graduation (xét tốt nghiệp present)"
         assert "national_defense_certificate_required" in a["requirement_tags"]
 
     def test_giao_duc_the_chat(self):
+        """GDTC requirement tag fires only inside a graduation context."""
         a = _annotated(
             "Hoàn thành môn học giáo dục thể chất là điều kiện tốt nghiệp."
         )
+        assert "graduation" in a["policy_area"], "Should be graduation (điều kiện tốt nghiệp present)"
         assert "physical_education_completion_required" in a["requirement_tags"]
 
     def test_graduation_application_procedure(self):
@@ -218,6 +228,118 @@ class TestGraduation:
             "Sinh viên nộp đơn đề nghị xét tốt nghiệp tại Phòng QLĐT."
         )
         assert "graduation_application_required" in a["procedure_tags"]
+
+    def test_dieu_kien_xet_tot_nghiep_triggers_graduation(self):
+        """Required: a chunk with 'điều kiện xét tốt nghiệp' must get graduation."""
+        a = _annotated(
+            "Điều kiện xét tốt nghiệp bao gồm tích lũy đủ số tín chỉ và đạt điểm trung bình."
+        )
+        assert "graduation" in a["policy_area"]
+        assert "graduation_audit" in a["action_tags"]
+
+    def test_hoi_dong_xet_tot_nghiep_triggers_graduation(self):
+        """Hội đồng xét tốt nghiệp is now an explicit trigger keyword."""
+        a = _annotated(
+            "Hội đồng xét tốt nghiệp họp sau mỗi học kỳ để xét duyệt danh sách tốt nghiệp."
+        )
+        assert "graduation" in a["policy_area"]
+
+
+# ---------------------------------------------------------------------------
+# 5b. Graduation false-positive prevention
+# ---------------------------------------------------------------------------
+
+class TestGraduationFalsePositivePrevention:
+    """Ensure GDTC/GDQP-only mentions do NOT produce graduation tagging."""
+
+    def test_gdtc_in_course_exemption_no_graduation(self):
+        """A course-exemption chunk mentioning GDTC must NOT get graduation."""
+        a = _annotated(
+            "Sinh viên được miễn môn học Giáo dục thể chất nếu có chứng chỉ hợp lệ. "
+            "Hồ sơ xin miễn nộp tại Phòng Quản lý đào tạo."
+        )
+        assert "graduation" not in a["policy_area"]
+
+    def test_gdqp_in_course_exemption_no_graduation(self):
+        """A course-exemption chunk mentioning GDQP must NOT get graduation."""
+        a = _annotated(
+            "Sinh viên được xét miễn môn Giáo dục quốc phòng và an ninh theo quy định. "
+            "Chứng chỉ giáo dục quốc phòng được cấp từ các trường quân đội được chấp nhận."
+        )
+        assert "graduation" not in a["policy_area"]
+
+    def test_gdqp_alone_no_graduation_but_course_exemption(self):
+        """Bare GDQP mention should still get course_exemption if xét miễn present."""
+        a = _annotated(
+            "Thực hiện xét miễn Giáo dục quốc phòng và an ninh theo quy định số 1512/QĐ-ĐHM."
+        )
+        assert "graduation" not in a["policy_area"]
+        assert "course_exemption" in a["policy_area"]
+
+    def test_physical_education_no_graduation_without_tot_nghiep(self):
+        """giáo dục thể chất alone must not trigger graduation."""
+        a = _annotated(
+            "Sinh viên giảm phần thực hành giáo dục thể chất nếu có giấy xác nhận khuyết tật."
+        )
+        assert "graduation" not in a["policy_area"]
+
+    def test_gdqp_requirement_tag_requires_graduation_context(self):
+        """`national_defense_certificate_required` only appears with graduation context."""
+        # Bare GDQP mention — no graduation keyword
+        a_bare = _annotated(
+            "Chứng chỉ giáo dục quốc phòng được xét miễn theo quy định của Trường."
+        )
+        assert "national_defense_certificate_required" not in a_bare["requirement_tags"]
+
+        # GDQP + graduation keyword — tag must appear
+        a_grad = _annotated(
+            "Có chứng chỉ giáo dục quốc phòng và hoàn thành xét tốt nghiệp đúng hạn."
+        )
+        assert "national_defense_certificate_required" in a_grad["requirement_tags"]
+
+
+# ---------------------------------------------------------------------------
+# 5c. Fulltime training regulation: Sections 27 / 28 / 29 are graduation
+# ---------------------------------------------------------------------------
+
+class TestFulltimeGraduationSections:
+    _DOC = "ou_fulltime_credit_training_regulation_2016"
+
+    def test_fulltime_section_27_gets_graduation(self):
+        a = _annotated(
+            "Nội dung bất kỳ",
+            doc_id=self._DOC,
+            section_number="27",
+        )
+        assert "graduation" in a["policy_area"], \
+            f"Section 27 of {self._DOC} must get graduation; got {a['policy_area']}"
+        assert "graduation_audit" in a["action_tags"]
+
+    def test_fulltime_section_28_gets_graduation(self):
+        a = _annotated(
+            "Nội dung bất kỳ",
+            doc_id=self._DOC,
+            section_number="28",
+        )
+        assert "graduation" in a["policy_area"]
+
+    def test_fulltime_section_29_gets_graduation(self):
+        a = _annotated(
+            "Nội dung bất kỳ",
+            doc_id=self._DOC,
+            section_number="29",
+        )
+        assert "graduation" in a["policy_area"]
+
+    def test_section_27_other_doc_no_graduation(self):
+        """Section 27 in a different document must NOT trigger graduation."""
+        a = _annotated(
+            "Nội dung bất kỳ",
+            doc_id="some_other_doc",
+            section_number="27",
+        )
+        assert "graduation" not in a["policy_area"], \
+            f"Section 27 of some_other_doc must not get graduation; got {a['policy_area']}"
 
 
 # ---------------------------------------------------------------------------
