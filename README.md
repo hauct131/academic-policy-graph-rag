@@ -122,6 +122,18 @@ python scripts/09_smoke_policy_qa.py --retrieval-backend bm25_like_v0
 
 > **Note:** Production default remains `lexical_v0` until evaluation proves another backend is better across all 9 eval cases.
 
+### Compare Retrieval Backends
+
+Run the deterministic retrieval comparison script to measure `first_chunk`, `chunk_any`, and `negative_chunk` retrieval quality across backends on the existing evaluation cases:
+
+```bash
+python scripts/10_compare_retrieval_backends.py
+python scripts/10_compare_retrieval_backends.py --backends lexical_v0,bm25_like_v0 --verbose
+```
+
+- `bm25_like_v0` is experimental. Do not change the production default until expanded eval cases show consistent improvement over `lexical_v0`.
+- This script evaluates **retrieval only** (which chunks were selected). For full end-to-end evaluation including answer text, use `python scripts/08_eval_policy_cases.py --verbose`.
+
 
 ## Documentation Links
 For detailed guides on deployment, updates, and architecture:
