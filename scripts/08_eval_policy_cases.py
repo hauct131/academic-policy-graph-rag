@@ -25,17 +25,14 @@ except ImportError:
 infer_case_issues = _qa.infer_case_issues
 answer_question = _qa.answer_question
 read_jsonl = _qa.read_jsonl
-load_graph_expansion = _qa.load_graph_expansion
-retrieve_chunks = _qa._retriever.retrieve_chunks
 
 try:
-    _selector = importlib.import_module("07_select_policy_sources")
+    _service = importlib.import_module("policy_retrieval_service")
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _selector = importlib.import_module("07_select_policy_sources")
+    _service = importlib.import_module("policy_retrieval_service")
 
-select_sources_for_issue = _selector.select_sources_for_issue
-prune_selected_sources_for_issue = _selector.prune_selected_sources_for_issue
+PolicyRetrievalService = _service.PolicyRetrievalService
 
 try:
     _domain = importlib.import_module("policy_domain_config")
@@ -75,13 +72,12 @@ def evaluate_case(
     expected_answer_contains_any = case.get("expected_answer_contains_any", [])
     negative_chunk_ids = case.get("negative_chunk_ids", [])
 
-    # Load graph bonus map if files exist
-    graph_bonus_map = {}
-    if nodes_path.exists() and edges_path.exists():
-        try:
-            graph_bonus_map = load_graph_expansion(question, nodes_path, edges_path)
-        except Exception:
-            pass
+    # Initialize retrieval service
+    retrieval_service = PolicyRetrievalService(
+        chunks=chunks,
+        nodes_file=nodes_path,
+        edges_file=edges_path,
+    )
 
     # 1. Infer issues
     inferred = infer_case_issues(question, domain_config=domain_config)
@@ -89,19 +85,16 @@ def evaluate_case(
 
     # 2. Retrieve selected sources
     selected_chunks = []
-    for issue in inferred:
-        p_area = issue["policy_area"]
-        results = retrieve_chunks(
-            chunks=chunks,
-            query=issue["query"],
-            top_k=top_k,
-            policy_area=p_area,
-            graph_bonus_map=graph_bonus_map,
-        )
-        selected = select_sources_for_issue(issue, results, max_sources=min(3, top_k))
-        selected = prune_selected_sources_for_issue(issue, selected, max_sources=min(3, top_k))
-        for chunk, score in selected:
-            selected_chunks.append(chunk)
+    selected = retrieval_service.retrieve_for_issues(
+        issues=inferred,
+        question=question,
+        top_k=top_k,
+        max_sources_per_issue=min(3, top_k),
+        use_graph=True,
+        strict_pruning=True,
+    )
+    for chunk, score in selected:
+        selected_chunks.append(chunk)
 
     selected_ids = [c["chunk_id"] for c in selected_chunks]
     first_chunk_id = selected_ids[0] if selected_ids else None
@@ -111,8 +104,8 @@ def evaluate_case(
         question=question,
         chunks=chunks,
         top_k=top_k,
-        graph_bonus_map=graph_bonus_map,
         domain_config=domain_config,
+        retrieval_service=retrieval_service,
     )
 
     # 4. Run assertions

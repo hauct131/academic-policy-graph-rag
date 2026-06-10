@@ -41,6 +41,14 @@ select_sources_for_issue = _selector.select_sources_for_issue
 prune_selected_sources_for_issue = _selector.prune_selected_sources_for_issue
 
 try:
+    _service = importlib.import_module("policy_retrieval_service")
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+    _service = importlib.import_module("policy_retrieval_service")
+
+PolicyRetrievalService = _service.PolicyRetrievalService
+
+try:
     _domain = importlib.import_module("policy_domain_config")
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
@@ -245,6 +253,7 @@ def answer_question(
     show_evidence_text: bool = False,
     domain_config: dict[str, Any] | None = None,
     document_registry: list[dict[str, Any]] | None = None,
+    retrieval_service: PolicyRetrievalService | None = None,
 ) -> str:
     """
     Given a question and the chunks list, infer issues, retrieve evidence,
@@ -252,26 +261,27 @@ def answer_question(
     """
     issues = infer_case_issues(question, domain_config=domain_config)
 
+    if retrieval_service is None:
+        retrieval_service = PolicyRetrievalService(chunks=chunks)
+
     # Gather evidence for each issue
     evidence_by_issue = {}
     total_matches = 0
 
     for issue in issues:
-        # Override filters if explicit ones are passed via CLI
-        p_area = policy_area_filter or issue["policy_area"]
-        
-        results = retrieve_chunks(
-            chunks=chunks,
-            query=issue["query"],
+        selected = retrieval_service.retrieve_for_issue(
+            issue=issue,
+            question=question,
             top_k=top_k,
-            policy_area=p_area,
-            action_tag=action_tag_filter,
-            requirement_tag=requirement_tag_filter,
-            risk_tag=risk_tag_filter,
+            max_sources=min(3, top_k),
+            use_graph=True,
+            strict_pruning=True,
+            policy_area_filter=policy_area_filter,
+            action_tag_filter=action_tag_filter,
+            requirement_tag_filter=requirement_tag_filter,
+            risk_tag_filter=risk_tag_filter,
             graph_bonus_map=graph_bonus_map,
         )
-        selected = select_sources_for_issue(issue, results, max_sources=min(3, top_k))
-        selected = prune_selected_sources_for_issue(issue, selected, max_sources=min(3, top_k))
         evidence_by_issue[issue["issue_type"]] = selected
         total_matches += len(selected)
 

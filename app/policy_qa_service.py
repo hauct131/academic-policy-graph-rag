@@ -24,19 +24,22 @@ try:
     _retriever = importlib.import_module("05_retrieve_policy_chunks")
     _domain = importlib.import_module("policy_domain_config")
     _reg = importlib.import_module("policy_document_registry")
+    _service = importlib.import_module("policy_retrieval_service")
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
     _qa = importlib.import_module("06_answer_policy_question")
     _retriever = importlib.import_module("05_retrieve_policy_chunks")
     _domain = importlib.import_module("policy_domain_config")
     _reg = importlib.import_module("policy_document_registry")
+    _service = importlib.import_module("policy_retrieval_service")
 
 read_jsonl = _retriever.read_jsonl
-load_graph_expansion = _retriever.load_graph_expansion
 answer_question = _qa.answer_question
 load_domain_config = _domain.load_domain_config
+infer_issues_from_domain = _domain.infer_issues_from_domain
 load_document_registry = _reg.load_document_registry
 should_warn_missing_current_notice = _reg.should_warn_missing_current_notice
+PolicyRetrievalService = _service.PolicyRetrievalService
 
 
 class PolicyQAService:
@@ -81,6 +84,11 @@ class PolicyQAService:
             self.chunks = read_jsonl(self.chunks_path)
             self.domain_config = load_domain_config(self.domain_config_path)
             self.document_registry = load_document_registry(self.document_registry_path)
+            self.retrieval_service = PolicyRetrievalService(
+                chunks=self.chunks,
+                nodes_file=self.nodes_path,
+                edges_file=self.edges_path
+            )
             self.initialized = True
         except Exception as e:
             self.initialized = False
@@ -107,29 +115,23 @@ class PolicyQAService:
             raise RuntimeError(msg)
 
         # Try to load graph expansion
-        graph_bonus_map = {}
         uses_graph = False
         if self.nodes_path.exists() and self.edges_path.exists():
-            try:
-                graph_bonus_map = load_graph_expansion(question, self.nodes_path, self.edges_path)
-                uses_graph = True
-            except Exception:
-                pass
+            uses_graph = True
 
         # Call core QA answer function
         answer = answer_question(
             question=question,
             chunks=self.chunks,
             top_k=top_k,
-            graph_bonus_map=graph_bonus_map,
             domain_config=self.domain_config,
             document_registry=self.document_registry,
             show_evidence_text=show_evidence_text,
+            retrieval_service=self.retrieval_service,
         )
 
         # Detect warnings
         warnings = []
-        from scripts.policy_domain_config import infer_issues_from_domain
         issues = infer_issues_from_domain(question, self.domain_config)
         for issue in issues:
             if should_warn_missing_current_notice(

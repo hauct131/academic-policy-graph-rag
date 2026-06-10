@@ -18,28 +18,25 @@ import importlib
 try:
     _qa = importlib.import_module("06_answer_policy_question")
     _retriever = importlib.import_module("05_retrieve_policy_chunks")
-    _selector = importlib.import_module("07_select_policy_sources")
     _domain = importlib.import_module("policy_domain_config")
     _reg = importlib.import_module("policy_document_registry")
+    _service = importlib.import_module("policy_retrieval_service")
 except ImportError:
     # Alternate path fallback
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
     _qa = importlib.import_module("06_answer_policy_question")
     _retriever = importlib.import_module("05_retrieve_policy_chunks")
-    _selector = importlib.import_module("07_select_policy_sources")
     _domain = importlib.import_module("policy_domain_config")
     _reg = importlib.import_module("policy_document_registry")
+    _service = importlib.import_module("policy_retrieval_service")
 
 read_jsonl = _retriever.read_jsonl
-load_graph_expansion = _retriever.load_graph_expansion
-retrieve_chunks = _retriever.retrieve_chunks
-select_sources_for_issue = _selector.select_sources_for_issue
-prune_selected_sources_for_issue = _selector.prune_selected_sources_for_issue
 infer_case_issues = _qa.infer_case_issues
 answer_question = _qa.answer_question
 load_domain_config = _domain.load_domain_config
 load_document_registry = _reg.load_document_registry
 should_warn_missing_current_notice = _reg.should_warn_missing_current_notice
+PolicyRetrievalService = _service.PolicyRetrievalService
 
 
 DEFAULT_QUESTIONS = [
@@ -92,18 +89,15 @@ def run_smoke_test(
     print("Running Academic Policy QA Smoke Test")
     print("============================================================\n")
 
+    # Instantiate retrieval service
+    retrieval_service = PolicyRetrievalService(
+        chunks=chunks,
+        nodes_file=nodes_path,
+        edges_file=edges_path
+    )
+
     for idx, question in enumerate(DEFAULT_QUESTIONS, 1):
         print(f"[{idx}] Question: \"{question}\"")
-        
-        # Load graph expansion if files exist
-        graph_bonus_map = {}
-        has_graph = False
-        if nodes_path.exists() and edges_path.exists():
-            try:
-                graph_bonus_map = load_graph_expansion(question, nodes_path, edges_path)
-                has_graph = True
-            except Exception:
-                pass
 
         # Expose inferred issues
         issues = infer_case_issues(question, domain_config=domain_config)
@@ -112,19 +106,15 @@ def run_smoke_test(
         print(f"    - Inferred Issues: {issue_types} ({', '.join(issue_labels)})")
 
         # Expose first evidence chunk details
-        selected_chunks = []
-        for issue in issues:
-            results = retrieve_chunks(
-                chunks=chunks,
-                query=issue["query"],
-                top_k=top_k,
-                policy_area=issue["policy_area"],
-                graph_bonus_map=graph_bonus_map
-            )
-            selected = select_sources_for_issue(issue, results, max_sources=min(3, top_k))
-            selected = prune_selected_sources_for_issue(issue, selected, max_sources=min(3, top_k))
-            for chunk, score in selected:
-                selected_chunks.append(chunk)
+        selected_pairs = retrieval_service.retrieve_for_issues(
+            issues=issues,
+            question=question,
+            top_k=top_k,
+            max_sources_per_issue=min(3, top_k),
+            use_graph=True,
+            strict_pruning=True
+        )
+        selected_chunks = [chunk for chunk, score in selected_pairs]
 
         if selected_chunks:
             c = selected_chunks[0]
@@ -146,9 +136,9 @@ def run_smoke_test(
             question=question,
             chunks=chunks,
             top_k=top_k,
-            graph_bonus_map=graph_bonus_map,
             domain_config=domain_config,
-            document_registry=document_registry
+            document_registry=document_registry,
+            retrieval_service=retrieval_service
         )
 
         if full_answer:

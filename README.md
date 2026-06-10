@@ -99,6 +99,13 @@ Run pytest to execute the full validation suite:
 pytest
 ```
 
+### Retrieval Service Layer
+
+- Retrieval is now wrapped by `PolicyRetrievalService`.
+- Current backend is deterministic lexical/metadata/graph retrieval.
+- Future vector/BM25/hybrid retrieval should be added behind this service layer.
+- Future retrieval changes must not replace citation guardrails, source selector, strict evidence pruning, and temporal notice checks.
+
 ## Documentation Links
 For detailed guides on deployment, updates, and architecture:
 - [Production Readiness Checklist](docs/PRODUCTION_READINESS_CHECKLIST.md)
