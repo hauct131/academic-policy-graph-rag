@@ -6,6 +6,7 @@ Tests for PolicyRetrievalService.
 
 import sys
 from pathlib import Path
+from typing import Any
 import pytest
 
 # Ensure scripts and root are in path
@@ -13,6 +14,30 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from policy_retrieval_service import PolicyRetrievalService
+
+
+# ---------------------------------------------------------------------------
+# Fake backend for injection tests
+# ---------------------------------------------------------------------------
+
+
+class FakeBackend:
+    """Minimal fake backend that always returns the first chunk with score 99."""
+
+    name = "fake_backend"
+
+    def retrieve(
+        self,
+        chunks: list[dict[str, Any]],
+        query: str,
+        top_k: int = 5,
+        policy_area: str | None = None,
+        action_tag: str | None = None,
+        requirement_tag: str | None = None,
+        risk_tag: str | None = None,
+        graph_bonus_map: dict[str, float] | None = None,
+    ) -> list[tuple[dict[str, Any], float]]:
+        return [(chunks[0], 99.0)] if chunks else []
 
 
 def get_real_chunks():
@@ -209,3 +234,74 @@ def test_real_query_graduation_returns_dieu_27_exactly():
     assert len(selected) > 0
     chunk_ids = [c[0]["chunk_id"] for c in selected]
     assert "ou_fulltime_credit_training_regulation_2016__dieu_27" in chunk_ids
+
+
+# ---------------------------------------------------------------------------
+# New: Backend abstraction tests
+# ---------------------------------------------------------------------------
+
+
+def test_service_default_backend_name_is_lexical_v0():
+    """PolicyRetrievalService uses lexical_v0 backend by default."""
+    dummy_chunks = [{"chunk_id": "c1", "text": "test", "policy_area": ["graduation"]}]
+    service = PolicyRetrievalService(chunks=dummy_chunks)
+    assert service.backend_name == "lexical_v0"
+
+
+def test_service_accepts_custom_backend():
+    """PolicyRetrievalService stores and exposes injected backend."""
+    dummy_chunks = [{"chunk_id": "c1", "text": "test", "policy_area": ["graduation"]}]
+    fake = FakeBackend()
+    service = PolicyRetrievalService(chunks=dummy_chunks, backend=fake)
+    assert service.backend is fake
+    assert service.backend_name == "fake_backend"
+
+
+def test_service_retrieve_for_issue_uses_injected_backend():
+    """retrieve_for_issue delegates to the injected backend, not the default."""
+    dummy_chunks = [
+        {
+            "chunk_id": "c1",
+            "doc_id": "doc_test",
+            "text": "điều kiện tốt nghiệp",
+            "section_title": "Điều 1",
+            "section_number": "1",
+            "chapter_title": "Chương I",
+            "chunk_type": "article",
+            "policy_area": ["graduation"],
+            "action_tags": ["xét tốt nghiệp"],
+            "requirement_tags": [],
+            "procedure_tags": [],
+            "risk_tags": [],
+            "evidence_groups": [],
+            "time_tags": [],
+        }
+    ]
+    fake = FakeBackend()
+    service = PolicyRetrievalService(chunks=dummy_chunks, backend=fake)
+    issue = {"issue_type": "graduation", "query": "tốt nghiệp", "policy_area": "graduation"}
+    selected = service.retrieve_for_issue(
+        issue=issue,
+        question="Điều kiện tốt nghiệp?",
+        top_k=5,
+        max_sources=3,
+        use_graph=False,
+    )
+    # FakeBackend always returns the first chunk with score 99.0
+    assert len(selected) >= 1
+    assert selected[0][0]["chunk_id"] == "c1"
+
+
+def test_service_fake_backend_empty_chunks():
+    """FakeBackend returns empty list when chunks is empty."""
+    fake = FakeBackend()
+    service = PolicyRetrievalService(chunks=[], backend=fake)
+    issue = {"issue_type": "graduation", "query": "tốt nghiệp", "policy_area": "graduation"}
+    selected = service.retrieve_for_issue(
+        issue=issue,
+        question="test",
+        top_k=5,
+        max_sources=3,
+        use_graph=False,
+    )
+    assert selected == []

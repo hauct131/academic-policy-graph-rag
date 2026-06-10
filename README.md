@@ -102,8 +102,9 @@ pytest
 ### Retrieval Service Layer
 
 - Retrieval is now wrapped by `PolicyRetrievalService`.
+- Current retrieval backend: `lexical_v0`.
 - Current backend is deterministic lexical/metadata/graph retrieval.
-- Future vector/BM25/hybrid retrieval should be added behind this service layer.
+- Future BM25/vector/hybrid retrieval should be implemented as new retrieval backends behind `PolicyRetrievalService`, not by bypassing source selection or strict evidence pruning.
 - Future retrieval changes must not replace citation guardrails, source selector, strict evidence pruning, and temporal notice checks.
 
 ## Documentation Links

@@ -4,6 +4,14 @@ scripts/policy_retrieval_service.py
 
 Service layer wrapping policy chunk retrieval, source selection,
 and pruning with graph bonus integration.
+
+Retrieval is delegated to a swappable PolicyRetrievalBackend.
+The default backend is LexicalPolicyRetrievalBackend (lexical_v0).
+
+Future BM25/vector/hybrid retrieval should be implemented as new
+retrieval backends and injected here — not by bypassing source
+selection, strict evidence pruning, citation guardrails, or temporal
+notice checks.
 """
 
 import sys
@@ -14,18 +22,22 @@ from typing import Any, Dict, List, Tuple
 sys.path.insert(0, str(Path(__file__).parent.absolute()))
 
 import importlib
+
 try:
     _retriever = importlib.import_module("05_retrieve_policy_chunks")
     _selector = importlib.import_module("07_select_policy_sources")
+    _backends = importlib.import_module("policy_retrieval_backends")
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
     _retriever = importlib.import_module("05_retrieve_policy_chunks")
     _selector = importlib.import_module("07_select_policy_sources")
+    _backends = importlib.import_module("policy_retrieval_backends")
 
-retrieve_chunks = _retriever.retrieve_chunks
 load_graph_expansion = _retriever.load_graph_expansion
 select_sources_for_issue = _selector.select_sources_for_issue
 prune_selected_sources_for_issue = _selector.prune_selected_sources_for_issue
+PolicyRetrievalBackend = _backends.PolicyRetrievalBackend
+get_default_retrieval_backend = _backends.get_default_retrieval_backend
 
 
 class PolicyRetrievalService:
@@ -34,10 +46,27 @@ class PolicyRetrievalService:
         chunks: list[dict],
         nodes_file: str | Path | None = None,
         edges_file: str | Path | None = None,
+        backend: Any | None = None,
     ):
+        """
+        Initialize the retrieval service.
+
+        Args:
+            chunks: Annotated policy chunks.
+            nodes_file: Optional path to graph nodes JSONL.
+            edges_file: Optional path to graph edges JSONL.
+            backend: Optional retrieval backend. Defaults to
+                     LexicalPolicyRetrievalBackend (lexical_v0).
+        """
         self.chunks = chunks
         self.nodes_file = Path(nodes_file) if nodes_file else None
         self.edges_file = Path(edges_file) if edges_file else None
+        self.backend = backend if backend is not None else get_default_retrieval_backend()
+
+    @property
+    def backend_name(self) -> str:
+        """Return the name of the active retrieval backend."""
+        return self.backend.name
 
     def build_graph_bonus_map(self, question: str) -> dict[str, float]:
         """
@@ -78,8 +107,8 @@ class PolicyRetrievalService:
 
         p_area = policy_area_filter or issue["policy_area"]
 
-        # 1. Retrieve
-        results = retrieve_chunks(
+        # 1. Retrieve via backend
+        results = self.backend.retrieve(
             chunks=self.chunks,
             query=issue["query"],
             top_k=top_k,

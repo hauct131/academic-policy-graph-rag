@@ -95,6 +95,7 @@ def run_smoke_test(
         nodes_file=nodes_path,
         edges_file=edges_path
     )
+    print(f"Retrieval backend: {retrieval_service.backend_name}")
 
     for idx, question in enumerate(DEFAULT_QUESTIONS, 1):
         print(f"[{idx}] Question: \"{question}\"")

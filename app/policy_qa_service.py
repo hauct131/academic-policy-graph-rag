@@ -147,7 +147,8 @@ class PolicyQAService:
             "domain_id": self.domain_config.get("domain_id", "ou_academic_policy_v1") if self.domain_config else "ou_academic_policy_v1",
             "chunks_loaded": len(self.chunks),
             "uses_document_registry": True,
-            "uses_graph": uses_graph
+            "uses_graph": uses_graph,
+            "retrieval_backend": self.retrieval_service.backend_name,
         }
 
         return answer, metadata, warnings
