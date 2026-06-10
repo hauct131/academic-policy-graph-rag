@@ -205,6 +205,17 @@ class TestIntegrationQA:
         # Should have citations
         assert "Căn cứ chính" in ans
         assert "# Căn cứ chi tiết" in ans
+        
+        # Check that Điều 27 is first in the list of Căn cứ chính
+        lines = ans.splitlines()
+        cc_start = -1
+        for idx, line in enumerate(lines):
+            if "Căn cứ chính:" in line:
+                cc_start = idx
+                break
+        assert cc_start != -1
+        # The first evidence line after "Căn cứ chính:" should contain "Điều 27"
+        assert "Điều 27" in lines[cc_start + 1]
 
     def test_integration_course_exemption_query(self):
         chunks = self._load_real_chunks()
@@ -213,6 +224,33 @@ class TestIntegrationQA:
         # Should return evidence and mention "hồ sơ" or "miễn"
         assert "hồ sơ" in ans.lower() or "miễn" in ans.lower()
         assert "Căn cứ chính" in ans
+        
+        # Check that Điều 5 is first in the list of Căn cứ chính
+        lines = ans.splitlines()
+        cc_start = -1
+        for idx, line in enumerate(lines):
+            if "Căn cứ chính:" in line:
+                cc_start = idx
+                break
+        assert cc_start != -1
+        assert "Điều 5" in lines[cc_start + 1]
+
+    def test_integration_course_exemption_conditions_query(self):
+        chunks = self._load_real_chunks()
+        ans = answer_question("Điều kiện miễn môn học là gì?", chunks)
+        
+        assert "miễn" in ans.lower()
+        assert "Căn cứ chính" in ans
+        
+        # Check that Điều 4 is first in the list of Căn cứ chính
+        lines = ans.splitlines()
+        cc_start = -1
+        for idx, line in enumerate(lines):
+            if "Căn cứ chính:" in line:
+                cc_start = idx
+                break
+        assert cc_start != -1
+        assert "Điều 4" in lines[cc_start + 1]
 
     def test_integration_ielts_query(self):
         chunks = self._load_real_chunks()

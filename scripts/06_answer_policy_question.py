@@ -31,6 +31,14 @@ read_jsonl = _retriever.read_jsonl
 retrieve_chunks = _retriever.retrieve_chunks
 load_graph_expansion = _retriever.load_graph_expansion
 
+try:
+    _selector = importlib.import_module("07_select_policy_sources")
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+    _selector = importlib.import_module("07_select_policy_sources")
+
+select_sources_for_issue = _selector.select_sources_for_issue
+
 
 # ---------------------------------------------------------------------------
 # Issue inference
@@ -216,8 +224,9 @@ def answer_question(
             risk_tag=risk_tag_filter,
             graph_bonus_map=graph_bonus_map,
         )
-        evidence_by_issue[issue["issue_type"]] = results
-        total_matches += len(results)
+        selected = select_sources_for_issue(issue, results, max_sources=min(3, top_k))
+        evidence_by_issue[issue["issue_type"]] = selected
+        total_matches += len(selected)
 
     # 1. No-answer path
     if total_matches == 0:
