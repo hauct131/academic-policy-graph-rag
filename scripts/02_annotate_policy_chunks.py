@@ -197,7 +197,6 @@ def annotate_chunk(chunk: dict[str, Any]) -> dict[str, Any]:
         "xét tốt nghiệp",
         "công nhận tốt nghiệp",
         "điều kiện tốt nghiệp",
-        "bằng tốt nghiệp",
         "hội đồng xét tốt nghiệp",
     ) or is_fulltime_graduation_section
     if _is_graduation:

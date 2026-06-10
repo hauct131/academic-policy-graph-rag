@@ -297,6 +297,13 @@ class TestGraduationFalsePositivePrevention:
         )
         assert "national_defense_certificate_required" in a_grad["requirement_tags"]
 
+    def test_bang_tot_nghiep_alone_no_graduation(self):
+        """Bare bằng tốt nghiệp alone must not trigger graduation."""
+        a = _annotated(
+            "Sinh viên có giấy chứng nhận sĩ quan dự bị hoặc bằng tốt nghiệp do các trường quân đội, công an cấp."
+        )
+        assert "graduation" not in a["policy_area"]
+
 
 # ---------------------------------------------------------------------------
 # 5c. Fulltime training regulation: Sections 27 / 28 / 29 are graduation
