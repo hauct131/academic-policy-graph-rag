@@ -39,3 +39,7 @@ data/*
 # Intermediate OCR outputs
 data/raw/ocr/
 data/raw/ocr/**
+
+# Generated chunk outputs
+data/chunks/*
+!data/chunks/.gitkeep
