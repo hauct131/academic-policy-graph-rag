@@ -17,6 +17,7 @@ from importlib import import_module
 
 _selector = import_module("07_select_policy_sources")
 select_sources_for_issue = _selector.select_sources_for_issue
+prune_selected_sources_for_issue = _selector.prune_selected_sources_for_issue
 
 
 def _make_chunk(text: str, section_number: str = "1", section_title: str = "", **kwargs) -> dict:
@@ -171,3 +172,102 @@ class TestPolicySourceSelector:
         # Deterministic order sorting by original score desc, then doc_id, etc.
         assert selected[0][0]["chunk_id"] == "chunk_15"
         assert selected[1][0]["chunk_id"] == "chunk_12"
+
+    def test_pruning_course_exemption_conditions(self):
+        # Question: "Điều kiện miễn môn học là gì?" -> issue_type "course_exemption", query does NOT contain "ho so"
+        # Keeps Điều 4 (priority 3), and should remove unrelated Điều 10 / Điều 9 (penalized/not matched)
+        issue = {
+            "issue_type": "course_exemption",
+            "query": "dieu kien mien mon hoc"
+        }
+        chunk_4 = _make_chunk("Điều kiện xét miễn môn học", section_number="4", section_title="Điều 4. Điều kiện xét miễn", policy_area=["course_exemption"], chunk_id="chunk_4")
+        chunk_10 = _make_chunk("Điều chỉnh khối lượng", section_number="10", section_title="Điều 10. Điều chỉnh", policy_area=["course_registration"], chunk_id="chunk_10")
+        chunk_9 = _make_chunk("Xét miễn ngoại ngữ", section_number="9", section_title="Điều 9. Xét miễn ngoại ngữ", policy_area=["foreign_language_requirement"], chunk_id="chunk_9")
+
+        selected = [
+            (chunk_4, 15.0),
+            (chunk_10, 8.0),
+            (chunk_9, 7.0)
+        ]
+
+        pruned = prune_selected_sources_for_issue(issue, selected, max_sources=3)
+        assert len(pruned) == 1
+        assert pruned[0][0]["chunk_id"] == "chunk_4"
+
+    def test_pruning_course_exemption_hoso(self):
+        # Question: "Miễn môn học cần hồ sơ gì?" -> issue_type "course_exemption", query contains "ho so"
+        # Keeps Điều 5 (priority 3) and Điều 4 (priority 2), removes unrelated chunks (priority -1)
+        issue = {
+            "issue_type": "course_exemption",
+            "query": "ho so mien mon hoc"
+        }
+        chunk_4 = _make_chunk("Điều kiện xét miễn môn học", section_number="4", section_title="Điều 4. Điều kiện xét miễn", policy_area=["course_exemption"], chunk_id="chunk_4")
+        chunk_5 = _make_chunk("Hồ sơ xét miễn môn học", section_number="5", section_title="Điều 5. Hồ sơ xét miễn", policy_area=["course_exemption"], chunk_id="chunk_5")
+        chunk_10 = _make_chunk("Điều chỉnh khối lượng", section_number="10", section_title="Điều 10. Điều chỉnh", policy_area=["course_registration"], chunk_id="chunk_10")
+
+        selected = [
+            (chunk_5, 18.0),
+            (chunk_4, 12.0),
+            (chunk_10, 8.0)
+        ]
+
+        pruned = prune_selected_sources_for_issue(issue, selected, max_sources=3)
+        assert len(pruned) == 2
+        assert pruned[0][0]["chunk_id"] == "chunk_5"
+        assert pruned[1][0]["chunk_id"] == "chunk_4"
+
+    def test_pruning_ielts_query(self):
+        # Question: "IELTS 6.0..." -> cert query. Keeps Điều 9 and Phụ lục I (priority 3), removes generic/unrelated chunks (priority < 3)
+        issue = {
+            "issue_type": "foreign_language_requirement",
+            "query": "ielts 6.0 duoc mien tieng anh khong"
+        }
+        chunk_9 = _make_chunk("Xét miễn ngoại ngữ", section_number="9", section_title="Điều 9. Xét miễn ngoại ngữ", policy_area=["foreign_language_requirement"], chunk_id="chunk_9")
+        chunk_app = _make_chunk("Danh mục chứng chỉ", section_number="Phụ lục I", section_title="Phụ lục I. Chứng chỉ tiếng Anh", policy_area=["foreign_language_requirement"], chunk_id="chunk_app")
+        chunk_gen = _make_chunk("Tiếng Anh và chuẩn đầu ra", section_number="5", section_title="Điều 5. Chuẩn đầu ra", policy_area=["foreign_language_requirement"], chunk_id="chunk_gen")
+
+        selected = [
+            (chunk_9, 15.0),
+            (chunk_app, 14.0),
+            (chunk_gen, 10.0)
+        ]
+
+        pruned = prune_selected_sources_for_issue(issue, selected, max_sources=3)
+        assert len(pruned) == 2
+        assert {p[0]["chunk_id"] for p in pruned} == {"chunk_9", "chunk_app"}
+
+    def test_pruning_graduation(self):
+        # Question: "Điều kiện xét tốt nghiệp..." -> keeps Điều 27 (priority 3) and optionally 28/29 (priority 2), removes unrelated chunks (priority < 2)
+        issue = {
+            "issue_type": "graduation",
+            "query": "dieu kien xet tot nghiep"
+        }
+        chunk_27 = _make_chunk("Điều kiện xét tốt nghiệp", section_number="27", policy_area=["graduation"], chunk_id="chunk_27")
+        chunk_28 = _make_chunk("Cấp bằng tốt nghiệp", section_number="28", policy_area=["graduation"], chunk_id="chunk_28")
+        chunk_unrelated = _make_chunk("Cảnh báo học tập", section_number="13", policy_area=["academic_standing"], chunk_id="chunk_13")
+
+        selected = [
+            (chunk_27, 20.0),
+            (chunk_28, 15.0),
+            (chunk_unrelated, 8.0)
+        ]
+
+        pruned = prune_selected_sources_for_issue(issue, selected, max_sources=3)
+        assert len(pruned) == 2
+        assert pruned[0][0]["chunk_id"] == "chunk_27"
+        assert pruned[1][0]["chunk_id"] == "chunk_28"
+
+    def test_pruning_fallback_keeps_first_selected_source(self):
+        # If all sources are pruned, fallback keeps the first selected source
+        issue = {
+            "issue_type": "graduation",
+            "query": "dieu kien xet tot nghiep"
+        }
+        chunk_unrelated = _make_chunk("Cảnh báo học tập", section_number="13", policy_area=["academic_standing"], chunk_id="chunk_13")
+        selected = [
+            (chunk_unrelated, 12.0)
+        ]
+
+        pruned = prune_selected_sources_for_issue(issue, selected, max_sources=3)
+        assert len(pruned) == 1
+        assert pruned[0][0]["chunk_id"] == "chunk_13"

@@ -253,3 +253,76 @@ def select_sources_for_issue(
 
     sorted_useful = sorted(useful_candidates, key=get_useful_sort_key)
     return [(c, f_s) for c, f_s, p in sorted_useful][:max_sources]
+
+
+def prune_selected_sources_for_issue(
+    issue: dict,
+    selected: list[tuple[dict, float]],
+    min_priority: int | None = None,
+    max_sources: int = 3
+) -> list[tuple[dict, float]]:
+    """
+    Filter out noisy/unrelated chunks from the selected source list.
+    Preserves original order, deduplicates, limits to max_sources,
+    and falls back to first selected source if everything is pruned.
+    """
+    if not selected:
+        return []
+
+    issue_type = issue.get("issue_type", "")
+    query = normalize_text(issue.get("query", ""))
+
+    pruned = []
+    for chunk, score in selected:
+        p = source_selector_priority(issue, chunk)
+        keep = True
+
+        if issue_type == "graduation":
+            keep = (p >= 2)
+        elif issue_type == "course_exemption":
+            if "ho so" in query:
+                keep = (p >= 2)
+            else:
+                if p >= 3:
+                    keep = True
+                elif p == 2 and str(chunk.get("section_number", "")).strip() == "5":
+                    hoso_suggest_kws = ["ho so", "nop", "giay to", "don", "minh chung", "thu tuc"]
+                    query_suggests_hoso = any(kw in query for kw in hoso_suggest_kws)
+                    keep = (max_sources > 1 and query_suggests_hoso)
+                else:
+                    keep = False
+        elif issue_type == "foreign_language_requirement":
+            cert_kws = ["ielts", "toeic", "toefl", "aptis", "cambridge", "chung chi"]
+            is_cert = any(kw in query for kw in cert_kws)
+            if is_cert:
+                keep = (p >= 3)
+            else:
+                keep = (p >= 2)
+        elif issue_type == "course_registration":
+            keep = (p >= 2)
+        elif issue_type == "retake_and_grade_improvement":
+            keep = (p >= 2)
+        elif issue_type == "academic_standing":
+            keep = (p >= 2)
+        else:
+            if min_priority is not None:
+                keep = (p >= min_priority)
+            else:
+                keep = True
+
+        if keep:
+            pruned.append((chunk, score))
+
+    if not pruned:
+        pruned = [selected[0]]
+
+    # Deduplicate by chunk_id
+    seen = set()
+    deduped = []
+    for chunk, score in pruned:
+        c_id = chunk.get("chunk_id")
+        if c_id not in seen:
+            seen.add(c_id)
+            deduped.append((chunk, score))
+
+    return deduped[:max_sources]

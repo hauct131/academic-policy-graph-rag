@@ -260,6 +260,16 @@ class TestIntegrationQA:
         assert "Căn cứ chính" in ans
         assert "# Căn cứ chi tiết" in ans
         assert len(ans) > 100
+        # Should include Điều 9 and/or Phụ lục I
+        assert "Điều 9" in ans or "Phụ lục I" in ans
+
+    def test_integration_course_exemption_no_noisy_evidence(self):
+        chunks = self._load_real_chunks()
+        ans = answer_question("Điều kiện miễn môn học là gì?", chunks)
+        
+        # Should NOT contain noisy/unrelated chunks
+        assert "ou_fulltime_credit_training_regulation_2016__dieu_10" not in ans
+        assert "ou_non_major_foreign_language_regulation_2023__dieu_9" not in ans
 
     def test_integration_with_domain_config_parameter(self):
         chunks = self._load_real_chunks()
@@ -278,6 +288,7 @@ class TestIntegrationQA:
                 cc_start = idx
                 break
         assert cc_start != -1
+        # "Miễn môn học cần hồ sơ gì?" should include Điều 5 first
         assert "Điều 5" in lines[cc_start + 1]
 
     def test_integration_with_document_registry_parameter(self):

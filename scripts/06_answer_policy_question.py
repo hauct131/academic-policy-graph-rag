@@ -38,6 +38,7 @@ except ImportError:
     _selector = importlib.import_module("07_select_policy_sources")
 
 select_sources_for_issue = _selector.select_sources_for_issue
+prune_selected_sources_for_issue = _selector.prune_selected_sources_for_issue
 
 try:
     _domain = importlib.import_module("policy_domain_config")
@@ -270,6 +271,7 @@ def answer_question(
             graph_bonus_map=graph_bonus_map,
         )
         selected = select_sources_for_issue(issue, results, max_sources=min(3, top_k))
+        selected = prune_selected_sources_for_issue(issue, selected, max_sources=min(3, top_k))
         evidence_by_issue[issue["issue_type"]] = selected
         total_matches += len(selected)
 
