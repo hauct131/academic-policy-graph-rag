@@ -38,6 +38,7 @@ select_sources_for_issue = _selector.select_sources_for_issue
 prune_selected_sources_for_issue = _selector.prune_selected_sources_for_issue
 PolicyRetrievalBackend = _backends.PolicyRetrievalBackend
 get_default_retrieval_backend = _backends.get_default_retrieval_backend
+get_retrieval_backend = _backends.get_retrieval_backend
 
 
 class PolicyRetrievalService:
@@ -47,6 +48,7 @@ class PolicyRetrievalService:
         nodes_file: str | Path | None = None,
         edges_file: str | Path | None = None,
         backend: Any | None = None,
+        backend_name: str | None = None,
     ):
         """
         Initialize the retrieval service.
@@ -55,13 +57,21 @@ class PolicyRetrievalService:
             chunks: Annotated policy chunks.
             nodes_file: Optional path to graph nodes JSONL.
             edges_file: Optional path to graph edges JSONL.
-            backend: Optional retrieval backend. Defaults to
-                     LexicalPolicyRetrievalBackend (lexical_v0).
+            backend: Optional retrieval backend instance. Takes priority over
+                     backend_name. Defaults to LexicalPolicyRetrievalBackend.
+            backend_name: Optional backend name string (e.g. "bm25_like_v0").
+                          Ignored if backend is provided. Uses get_retrieval_backend()
+                          to resolve. Defaults to LexicalPolicyRetrievalBackend.
         """
         self.chunks = chunks
         self.nodes_file = Path(nodes_file) if nodes_file else None
         self.edges_file = Path(edges_file) if edges_file else None
-        self.backend = backend if backend is not None else get_default_retrieval_backend()
+        if backend is not None:
+            self.backend = backend
+        elif backend_name is not None:
+            self.backend = get_retrieval_backend(backend_name)
+        else:
+            self.backend = get_default_retrieval_backend()
 
     @property
     def backend_name(self) -> str:

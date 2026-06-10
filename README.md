@@ -107,6 +107,22 @@ pytest
 - Future BM25/vector/hybrid retrieval should be implemented as new retrieval backends behind `PolicyRetrievalService`, not by bypassing source selection or strict evidence pruning.
 - Future retrieval changes must not replace citation guardrails, source selector, strict evidence pruning, and temporal notice checks.
 
+**Available retrieval backends:**
+
+| Backend | Name | Status | Description |
+|---|---|---|---|
+| `LexicalPolicyRetrievalBackend` | `lexical_v0` | **Default / Production** | Deterministic lexical token overlap + metadata tag scoring + graph bonus |
+| `BM25LikePolicyRetrievalBackend` | `bm25_like_v0` | Experimental | Standard-library BM25-like scoring with Vietnamese accent-insensitive tokenization |
+
+**Example backend comparison (smoke script):**
+```bash
+python scripts/09_smoke_policy_qa.py --retrieval-backend lexical_v0
+python scripts/09_smoke_policy_qa.py --retrieval-backend bm25_like_v0
+```
+
+> **Note:** Production default remains `lexical_v0` until evaluation proves another backend is better across all 9 eval cases.
+
+
 ## Documentation Links
 For detailed guides on deployment, updates, and architecture:
 - [Production Readiness Checklist](docs/PRODUCTION_READINESS_CHECKLIST.md)

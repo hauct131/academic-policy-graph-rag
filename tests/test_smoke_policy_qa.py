@@ -65,3 +65,33 @@ def test_smoke_script_returns_one_when_files_missing():
         full_answer=False
     )
     assert res == 1
+
+
+def test_smoke_script_bm25_backend_exits_zero_when_chunks_exist(capsys):
+    """run_smoke_test with bm25_like_v0 should exit 0 and print backend name."""
+    smoke = import_module("09_smoke_policy_qa")
+
+    chunks_path = Path(__file__).parent.parent / "data" / "chunks" / "policy_chunks.annotated.jsonl"
+    if not chunks_path.exists():
+        pytest.skip("Annotated chunks file not found, skipping BM25 smoke test.")
+
+    nodes_path = Path(__file__).parent.parent / "data" / "graph" / "policy_graph_nodes.jsonl"
+    edges_path = Path(__file__).parent.parent / "data" / "graph" / "policy_graph_edges.jsonl"
+    config_path = Path(__file__).parent.parent / "domains" / "ou_academic_policy_v1" / "domain.json"
+    registry_path = Path(__file__).parent.parent / "domains" / "ou_academic_policy_v1" / "document_registry.jsonl"
+
+    res = smoke.run_smoke_test(
+        chunks_path=chunks_path,
+        nodes_path=nodes_path,
+        edges_path=edges_path,
+        config_path=config_path,
+        registry_path=registry_path,
+        top_k=5,
+        full_answer=False,
+        retrieval_backend="bm25_like_v0",
+    )
+    assert res == 0
+
+    captured = capsys.readouterr()
+    assert "Retrieval backend: bm25_like_v0" in captured.out
+    assert "Smoke Test Complete" in captured.out

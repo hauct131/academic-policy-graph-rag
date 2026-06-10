@@ -305,3 +305,69 @@ def test_service_fake_backend_empty_chunks():
         use_graph=False,
     )
     assert selected == []
+
+
+# ---------------------------------------------------------------------------
+# New: backend_name param and BM25 service integration
+# ---------------------------------------------------------------------------
+
+_BM25_TEST_CHUNK = {
+    "chunk_id": "test_doc__dieu_1",
+    "doc_id": "test_doc",
+    "text": "Điều kiện tốt nghiệp bao gồm tích lũy đủ số tín chỉ theo chương trình đào tạo.",
+    "section_title": "Điều 1. Điều kiện tốt nghiệp",
+    "section_number": "1",
+    "chapter_title": "Chương I",
+    "chunk_type": "article",
+    "policy_area": ["graduation"],
+    "action_tags": ["graduation_audit"],
+    "requirement_tags": ["credit_hours"],
+    "procedure_tags": [],
+    "risk_tags": [],
+    "evidence_groups": [],
+    "time_tags": [],
+}
+
+
+def test_service_backend_name_param_bm25():
+    """PolicyRetrievalService(backend_name='bm25_like_v0').backend_name == 'bm25_like_v0'."""
+    service = PolicyRetrievalService(
+        chunks=[_BM25_TEST_CHUNK],
+        backend_name="bm25_like_v0",
+    )
+    assert service.backend_name == "bm25_like_v0"
+
+
+def test_service_bm25_backend_retrieves_matching_chunk():
+    """Service with BM25 backend retrieves a matching synthetic chunk."""
+    service = PolicyRetrievalService(
+        chunks=[_BM25_TEST_CHUNK],
+        backend_name="bm25_like_v0",
+    )
+    issue = {
+        "issue_type": "graduation",
+        "query": "điều kiện tốt nghiệp",
+        "policy_area": "graduation",
+    }
+    selected = service.retrieve_for_issue(
+        issue=issue,
+        question="Điều kiện tốt nghiệp là gì?",
+        top_k=5,
+        max_sources=3,
+        use_graph=False,
+    )
+    assert len(selected) >= 1
+    assert selected[0][0]["chunk_id"] == "test_doc__dieu_1"
+
+
+def test_service_explicit_backend_wins_over_backend_name():
+    """Explicit backend= object takes priority over backend_name=."""
+    fake = FakeBackend()
+    service = PolicyRetrievalService(
+        chunks=[_BM25_TEST_CHUNK],
+        backend=fake,
+        backend_name="bm25_like_v0",
+    )
+    # The fake backend is used, not BM25
+    assert service.backend is fake
+    assert service.backend_name == "fake_backend"

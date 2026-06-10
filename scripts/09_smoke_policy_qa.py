@@ -55,7 +55,8 @@ def run_smoke_test(
     config_path: Path,
     registry_path: Path,
     top_k: int,
-    full_answer: bool
+    full_answer: bool,
+    retrieval_backend: str = "lexical_v0",
 ) -> int:
     # 1. Check required files
     missing = []
@@ -93,7 +94,8 @@ def run_smoke_test(
     retrieval_service = PolicyRetrievalService(
         chunks=chunks,
         nodes_file=nodes_path,
-        edges_file=edges_path
+        edges_file=edges_path,
+        backend_name=retrieval_backend,
     )
     print(f"Retrieval backend: {retrieval_service.backend_name}")
 
@@ -195,6 +197,12 @@ def main() -> int:
         action="store_true",
         help="Print full generated answer output"
     )
+    parser.add_argument(
+        "--retrieval-backend",
+        default="lexical_v0",
+        choices=["lexical_v0", "bm25_like_v0"],
+        help="Retrieval backend to use (default: lexical_v0)"
+    )
     args = parser.parse_args()
 
     return run_smoke_test(
@@ -204,7 +212,8 @@ def main() -> int:
         config_path=Path(args.domain_config),
         registry_path=Path(args.document_registry),
         top_k=args.top_k,
-        full_answer=args.full_answer
+        full_answer=args.full_answer,
+        retrieval_backend=args.retrieval_backend,
     )
 
 
