@@ -13,9 +13,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from importlib import import_module
-
-_selector = import_module("select_policy_sources")
+import select_policy_sources as _selector
 select_sources_for_issue = _selector.select_sources_for_issue
 prune_selected_sources_for_issue = _selector.prune_selected_sources_for_issue
 

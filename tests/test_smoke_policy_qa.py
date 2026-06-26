@@ -10,18 +10,18 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from importlib import import_module
+import smoke_policy_qa as _smoke_mod
 
 
 def test_smoke_script_imports_and_compiles():
     # 1. scripts/09_smoke_policy_qa.py imports/compiles.
-    smoke = import_module("smoke_policy_qa")
+    smoke = _smoke_mod
     assert hasattr(smoke, "run_smoke_test")
     assert hasattr(smoke, "DEFAULT_QUESTIONS")
 
 
 def test_smoke_script_execution_exits_zero_when_chunks_exist(capsys):
-    smoke = import_module("smoke_policy_qa")
+    smoke = _smoke_mod
     
     chunks_path = Path(__file__).parent.parent / "data" / "chunks" / "policy_chunks.annotated.jsonl"
     if not chunks_path.exists():
@@ -52,7 +52,7 @@ def test_smoke_script_execution_exits_zero_when_chunks_exist(capsys):
 
 def test_smoke_script_returns_one_when_files_missing():
     # Test helper behavior when files are missing
-    smoke = import_module("smoke_policy_qa")
+    smoke = _smoke_mod
     nonexistent = Path("nonexistent_file.jsonl")
     
     res = smoke.run_smoke_test(
@@ -69,7 +69,7 @@ def test_smoke_script_returns_one_when_files_missing():
 
 def test_smoke_script_bm25_backend_exits_zero_when_chunks_exist(capsys):
     """run_smoke_test with bm25_like_v0 should exit 0 and print backend name."""
-    smoke = import_module("smoke_policy_qa")
+    smoke = _smoke_mod
 
     chunks_path = Path(__file__).parent.parent / "data" / "chunks" / "policy_chunks.annotated.jsonl"
     if not chunks_path.exists():

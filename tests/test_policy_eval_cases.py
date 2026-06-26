@@ -13,13 +13,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from importlib import import_module
+import eval_policy_cases as _eval
+import policy_retrieval_service as _svc
 
-_eval = import_module("eval_policy_cases")
 load_cases = _eval.load_cases
 evaluate_case = _eval.evaluate_case
-
-_svc = import_module("policy_retrieval_service")
 PolicyRetrievalService = _svc.PolicyRetrievalService
 
 

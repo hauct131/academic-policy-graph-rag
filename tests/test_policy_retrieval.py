@@ -14,9 +14,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from importlib import import_module
-
-_mod = import_module("retrieve_policy_chunks")
+import retrieve_policy_chunks as _mod
 
 normalize_text = _mod.normalize_text
 tokenize = _mod.tokenize

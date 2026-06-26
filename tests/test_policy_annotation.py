@@ -13,14 +13,9 @@ from pathlib import Path
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Import the module under test (name starts with a digit, use importlib)
-# ---------------------------------------------------------------------------
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from importlib import import_module
-
-_mod = import_module("annotate_policy_chunks")
+import annotate_policy_chunks as _mod
 
 normalize_text = _mod.normalize_text
 add_unique = _mod.add_unique

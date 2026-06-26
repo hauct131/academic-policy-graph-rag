@@ -13,9 +13,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from importlib import import_module
-
-_domain = import_module("policy_domain_config")
+import policy_domain_config as _domain
 load_domain_config = _domain.load_domain_config
 validate_domain_config = _domain.validate_domain_config
 infer_issues_from_domain = _domain.infer_issues_from_domain

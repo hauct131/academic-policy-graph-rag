@@ -13,7 +13,8 @@ import pytest
 # Ensure scripts directory is in path
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from importlib import import_module
+import compare_retrieval_backends as _compare_mod
+import policy_domain_config as _pdc_mod
 
 
 # ---------------------------------------------------------------------------
@@ -98,7 +99,7 @@ SYNTHETIC_DOMAIN_CONFIG = {
 
 
 def _get_compare_module():
-    return import_module("compare_retrieval_backends")
+    return _compare_mod
 
 
 # ---------------------------------------------------------------------------
@@ -453,9 +454,7 @@ def test_comparison_script_runs_with_real_files_if_available():
 
     chunks = mod.read_jsonl(paths["chunks"])
 
-    import importlib as _il
-    _dom = _il.import_module("policy_domain_config")
-    domain_config = _dom.load_domain_config(paths["config"])
+    domain_config = _pdc_mod.load_domain_config(paths["config"])
 
     cases = mod.load_cases(paths["cases"])
 
@@ -482,9 +481,7 @@ def test_grad_conditions_001_passes_lexical_with_real_chunks():
 
     mod = _get_compare_module()
 
-    import importlib as _il
-    _dom = _il.import_module("policy_domain_config")
-    domain_config = _dom.load_domain_config(paths["config"])
+    domain_config = _pdc_mod.load_domain_config(paths["config"])
 
     chunks = mod.read_jsonl(paths["chunks"])
 

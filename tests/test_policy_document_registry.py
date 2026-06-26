@@ -14,9 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from importlib import import_module
-
-_reg = import_module("policy_document_registry")
+import policy_document_registry as _reg
 load_document_registry = _reg.load_document_registry
 validate_document_registry = _reg.validate_document_registry
 infer_time_context = _reg.infer_time_context

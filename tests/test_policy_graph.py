@@ -15,9 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from importlib import import_module
-
-_mod = import_module("build_policy_graph")
+import build_policy_graph as _mod
 
 make_document_node = _mod.make_document_node
 make_chunk_node    = _mod.make_chunk_node
