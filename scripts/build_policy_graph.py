@@ -328,10 +328,13 @@ def build_graph(
             if khoan:
                 target_chunk_id += f"__khoan_{khoan}"
             target_nid = f"chunk:{target_chunk_id}"
-            crossrefs.append((target_nid, khoan, diem, dieu_num))
 
-            # ── Step 2: Dangling Edge Safeguard ───────────────────────────
-            if target_nid not in active_chunk_nids:
+            # Truncate strictly at the Điều level
+            dieu_target_nid = target_nid.split("__khoan_")[0]
+            if dieu_target_nid in active_chunk_nids:
+                crossrefs.append((dieu_target_nid, khoan, diem, dieu_num, True))
+            else:
+                crossrefs.append((target_nid, khoan, diem, dieu_num, False))
                 # External target — aggregate for minimum support counting
                 external_refs.setdefault(target_nid, set()).add(chunk_nid)
 
@@ -361,8 +364,8 @@ def build_graph(
         chunk_nid = f"chunk:{chunk['chunk_id']}"
         isolated: list[str] = []
 
-        for target_nid, khoan, diem, dieu_num in chunk_crossrefs.get(chunk_nid, []):
-            if target_nid in active_chunk_nids:
+        for target_nid, khoan, diem, dieu_num, is_internal in chunk_crossrefs.get(chunk_nid, []):
+            if is_internal:
                 # Internal link — emit standard REFERENCES edge
                 props: dict[str, Any] = {"referenced_dieu": dieu_num}
                 if khoan:
