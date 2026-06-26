@@ -19,6 +19,9 @@ _eval = import_module("08_eval_policy_cases")
 load_cases = _eval.load_cases
 evaluate_case = _eval.evaluate_case
 
+_svc = import_module("policy_retrieval_service")
+PolicyRetrievalService = _svc.PolicyRetrievalService
+
 
 class TestPolicyEvalCases:
     _CASES_PATH = Path(__file__).parent.parent / "data" / "eval" / "ou_policy_cases.jsonl"
@@ -69,13 +72,17 @@ class TestPolicyEvalCases:
         import policy_domain_config
         config = policy_domain_config.load_domain_config(self._CONFIG_PATH)
 
+        service = PolicyRetrievalService(
+            chunks=synthetic_chunks,
+            nodes_file=Path("nonexistent_nodes.jsonl"),
+            edges_file=Path("nonexistent_edges.jsonl"),
+        )
         res = evaluate_case(
             case=synthetic_case,
             chunks=synthetic_chunks,
             domain_config=config,
             top_k=5,
-            nodes_path=Path("nonexistent_nodes.jsonl"),
-            edges_path=Path("nonexistent_edges.jsonl"),
+            retrieval_service=service,
         )
         assert res["passed"] is True
         assert res["checks"]["issue_types_pass"] is True
@@ -109,13 +116,17 @@ class TestPolicyEvalCases:
         import policy_domain_config
         config = policy_domain_config.load_domain_config(self._CONFIG_PATH)
 
+        service = PolicyRetrievalService(
+            chunks=synthetic_chunks,
+            nodes_file=Path("nonexistent_nodes.jsonl"),
+            edges_file=Path("nonexistent_edges.jsonl"),
+        )
         res = evaluate_case(
             case=synthetic_case,
             chunks=synthetic_chunks,
             domain_config=config,
             top_k=5,
-            nodes_path=Path("nonexistent_nodes.jsonl"),
-            edges_path=Path("nonexistent_edges.jsonl"),
+            retrieval_service=service,
         )
         assert res["passed"] is False
         assert res["checks"]["issue_types_pass"] is True
@@ -148,15 +159,19 @@ class TestPolicyEvalCases:
         nodes_path = Path(__file__).parent.parent / "data" / "graph" / "policy_graph_nodes.jsonl"
         edges_path = Path(__file__).parent.parent / "data" / "graph" / "policy_graph_edges.jsonl"
 
+        service = PolicyRetrievalService(
+            chunks=real_chunks,
+            nodes_file=nodes_path,
+            edges_file=edges_path,
+        )
         res = evaluate_case(
             case=target_case,
             chunks=real_chunks,
             domain_config=config,
             top_k=5,
-            nodes_path=nodes_path,
-            edges_path=edges_path,
+            retrieval_service=service,
         )
-        
+
         # Check assertions for grad_conditions_001 under real chunks
         assert res["checks"]["issue_types_pass"] is True
         assert res["checks"]["first_chunk_pass"] is True
