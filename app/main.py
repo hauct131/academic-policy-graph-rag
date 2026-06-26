@@ -1,4 +1,5 @@
 import os
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
@@ -14,7 +15,7 @@ qa_service = PolicyQAService()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Load resources at startup
-    qa_service.load_resources()
+    await asyncio.to_thread(qa_service.load_resources)
     yield
 
 app = FastAPI(
@@ -46,7 +47,7 @@ async def ask_question_endpoint(request: AskRequest):
 
     # Check/reload service if not initialized
     if not qa_service.initialized:
-        qa_service.load_resources()
+        await asyncio.to_thread(qa_service.load_resources)
         
     if not qa_service.initialized:
         details = ", ".join(qa_service.missing_resources)
@@ -62,7 +63,8 @@ async def ask_question_endpoint(request: AskRequest):
         )
 
     try:
-        answer, metadata, warnings = qa_service.get_qa_response(
+        answer, metadata, warnings = await asyncio.to_thread(
+            qa_service.get_qa_response,
             question=request.question,
             top_k=request.top_k,
             show_evidence_text=request.show_evidence_text

@@ -189,12 +189,25 @@ def should_warn_missing_current_notice(
     question: str,
     records: list[dict[str, Any]],
     policy_area: str | None = None,
-    target_date: date | None = None
+    target_date: date | None = None,
+    chunks: list[dict[str, Any]] | None = None
 ) -> bool:
     """Check if warning about missing operational notice is necessary."""
     if not requires_current_notice(question):
         return False
-    return not has_current_notice(records, policy_area=policy_area, target_date=target_date)
+    if not has_current_notice(records, policy_area=policy_area, target_date=target_date):
+        return True
+    if chunks is not None:
+        notice_ids = {
+            r["doc_id"] for r in records
+            if r.get("document_type") in ["semester_notice", "annual_notice"]
+            and is_document_active(r, target_date)
+            and policy_area_matches(r, policy_area)
+        }
+        chunk_doc_ids = {c["doc_id"] for c in chunks}
+        if not any(nid in chunk_doc_ids for nid in notice_ids):
+            return True
+    return False
 
 
 def select_documents_for_query(

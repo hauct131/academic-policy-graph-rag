@@ -341,7 +341,8 @@ def answer_question(
         warn_missing = should_warn_missing_current_notice(
             question=question,
             records=document_registry,
-            policy_area=p_area
+            policy_area=p_area,
+            chunks=chunks
         )
     else:
         warn_missing = asks_about_current_semester(question, domain_config=domain_config)

@@ -50,7 +50,12 @@ academic-policy-graph-rag/
    pip install -r requirements-api.txt
    ```
 
-3. **Build generated data (Ingestion Pipeline):**
+3. **Configure shared git hooks:**
+   ```bash
+   git config core.hooksPath scripts/hooks
+   ```
+
+4. **Build generated data (Ingestion Pipeline):**
    ```bash
    python scripts/build_policy_chunks.py
    python scripts/annotate_policy_chunks.py

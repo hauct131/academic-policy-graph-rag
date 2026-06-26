@@ -129,14 +129,27 @@ class PolicyQAService:
         warnings = []
         issues = infer_issues_from_domain(question, self.domain_config)
         for issue in issues:
+            p_area = issue["policy_area"]
             if should_warn_missing_current_notice(
                 question=question,
                 records=self.document_registry,
-                policy_area=issue["policy_area"],
+                policy_area=p_area,
+                chunks=self.chunks
             ):
                 warnings.append(
-                    f"Chưa có thông báo học kỳ hiện tại cho {issue['policy_area']}"
+                    f"Chưa có thông báo học kỳ hiện tại cho {p_area}"
                 )
+                # Ingest a secondary alert inside the warnings array if a registry entry exists but has missing text content
+                if self.document_registry and _reg.has_current_notice(self.document_registry, policy_area=p_area):
+                    chunk_doc_ids = {c["doc_id"] for c in self.chunks}
+                    for r in self.document_registry:
+                        if r.get("document_type") in ["semester_notice", "annual_notice"]:
+                            if _reg.is_document_active(r):
+                                if _reg.policy_area_matches(r, p_area):
+                                    if r["doc_id"] not in chunk_doc_ids:
+                                        warnings.append(
+                                            f"Thông báo {r['doc_id']} tồn tại trong danh mục nhưng chưa có nội dung văn bản"
+                                        )
 
         metadata = {
             "domain_id": self.domain_config.get("domain_id", "ou_academic_policy_v1") if self.domain_config else "ou_academic_policy_v1",

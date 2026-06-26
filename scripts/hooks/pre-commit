@@ -1,0 +1,4 @@
+#!/bin/sh
+set -e
+echo "[pre-commit] Running pytest validation gate..."
+.venv/bin/pytest tests/ -q --tb=short

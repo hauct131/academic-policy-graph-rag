@@ -90,27 +90,35 @@ def test_service_with_missing_graph_files():
 
 
 def test_temporal_warning_scenario_a_active_notice():
-    # Scenario A: Query contains temporal words and matches a policy area with an active notice.
+    # Scenario A: Query contains temporal words and matches a policy area with an active notice with chunks present.
     # Policy Area: course_registration (covered by ou_semester_notice_2026_hk1).
     chunks_path = Path("data/chunks/policy_chunks.annotated.jsonl")
     if not chunks_path.exists():
         pytest.skip("Annotated chunks file not found, skipping integration QA tests.")
 
-    response = client.post("/policy/ask", json={
-        "question": "Hạn đăng ký môn học học kỳ này là khi nào?",
-        "top_k": 5
-    })
-    assert response.status_code == 200
-    data = response.json()
-    
-    # Since we have active semester notice for course_registration in registry (active currently in June 2026),
-    # there should be no warnings about missing current notice for course_registration.
-    warnings = data.get("warnings", [])
-    course_reg_warnings = [w for w in warnings if "course_registration" in w]
-    assert len(course_reg_warnings) == 0, f"Expected no course_registration warnings, got: {warnings}"
-    
-    # Also verify that the metadata marks the query as time-sensitive
-    assert data.get("metadata", {}).get("is_time_sensitive") is True
+    from app.main import qa_service
+    dummy_chunk = {
+        "chunk_id": "dummy_notice_chunk_001",
+        "doc_id": "ou_semester_notice_2026_hk1",
+        "text": "Nội dung chi tiết về đăng ký học phần học kỳ 1 năm học 2025-2026...",
+        "policy_area": ["course_registration"]
+    }
+    qa_service.chunks.append(dummy_chunk)
+    try:
+        response = client.post("/policy/ask", json={
+            "question": "Hạn đăng ký môn học học kỳ này là khi nào?",
+            "top_k": 5
+        })
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Since we have active semester notice for course_registration with chunks present, there should be no warnings.
+        warnings = data.get("warnings", [])
+        course_reg_warnings = [w for w in warnings if "course_registration" in w]
+        assert len(course_reg_warnings) == 0, f"Expected no course_registration warnings, got: {warnings}"
+        assert data.get("metadata", {}).get("is_time_sensitive") is True
+    finally:
+        qa_service.chunks.remove(dummy_chunk)
 
 
 def test_temporal_warning_scenario_b_missing_notice():
@@ -131,5 +139,28 @@ def test_temporal_warning_scenario_b_missing_notice():
     warnings = data.get("warnings", [])
     expected_warning = "Chưa có thông báo học kỳ hiện tại cho course_exemption"
     assert expected_warning in warnings, f"Expected warning '{expected_warning}' not found in warnings: {warnings}"
+    assert data.get("metadata", {}).get("is_time_sensitive") is True
+
+
+def test_temporal_warning_scenario_c_missing_text_content():
+    # Scenario C: Active notice exists in registry but has zero physical chunks in the system.
+    # Policy Area: course_registration (ou_semester_notice_2026_hk1 is active but has no chunks in system).
+    chunks_path = Path("data/chunks/policy_chunks.annotated.jsonl")
+    if not chunks_path.exists():
+        pytest.skip("Annotated chunks file not found, skipping integration QA tests.")
+
+    response = client.post("/policy/ask", json={
+        "question": "Hạn đăng ký môn học học kỳ này là khi nào?",
+        "top_k": 5
+    })
+    assert response.status_code == 200
+    data = response.json()
+    
+    # It must trigger the warning because the notice has zero chunks
+    warnings = data.get("warnings", [])
+    expected_primary = "Chưa có thông báo học kỳ hiện tại cho course_registration"
+    expected_secondary = "Thông báo ou_semester_notice_2026_hk1 tồn tại trong danh mục nhưng chưa có nội dung văn bản"
+    assert expected_primary in warnings, f"Expected primary warning not found in warnings: {warnings}"
+    assert expected_secondary in warnings, f"Expected secondary warning not found in warnings: {warnings}"
     assert data.get("metadata", {}).get("is_time_sensitive") is True
 
