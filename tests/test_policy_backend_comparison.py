@@ -252,7 +252,7 @@ def test_print_comparison_report_runs_without_error(tmp_path, capsys):
         edges_path=tmp_path / "edges.jsonl",
         verbose=True,
     )
-    mod.print_comparison_report(results, verbose=True)
+    mod.print_comparison_report(results, cases=SYNTHETIC_CASES, top_k=5, verbose=True)
 
     captured = capsys.readouterr()
     assert "lexical_v0" in captured.out
@@ -263,6 +263,172 @@ def test_print_comparison_report_runs_without_error(tmp_path, capsys):
 # ---------------------------------------------------------------------------
 # Tests using real generated chunks (skipped if missing)
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# IR metric tests (synthetic, no real data needed)
+# ---------------------------------------------------------------------------
+
+
+def test_relevant_ids_for_case_combines_first_and_any():
+    mod = _get_compare_module()
+    case = {
+        "expected_first_chunk_id": "chunk_a",
+        "expected_chunk_ids_any": ["chunk_b", "chunk_c"],
+    }
+    ids = mod._relevant_ids_for_case(case)
+    assert ids == ["chunk_a", "chunk_b", "chunk_c"]
+
+
+def test_relevant_ids_for_case_deduplicates():
+    mod = _get_compare_module()
+    case = {
+        "expected_first_chunk_id": "chunk_a",
+        "expected_chunk_ids_any": ["chunk_a", "chunk_b"],
+    }
+    ids = mod._relevant_ids_for_case(case)
+    assert ids.count("chunk_a") == 1
+    assert "chunk_b" in ids
+
+
+def test_relevant_ids_for_case_empty_when_none_defined():
+    mod = _get_compare_module()
+    case = {"expected_first_chunk_id": None, "expected_chunk_ids_any": []}
+    assert mod._relevant_ids_for_case(case) == []
+
+
+def test_compute_ir_metrics_perfect_retrieval():
+    """When the expected chunk is ranked first, all metrics should be 1.0."""
+    mod = _get_compare_module()
+    cases = [
+        {
+            "case_id": "c1",
+            "expected_first_chunk_id": "chunk_a",
+            "expected_chunk_ids_any": [],
+        }
+    ]
+    results = [
+        {
+            "case_id": "c1",
+            "selected_chunk_ids": ["chunk_a", "chunk_b"],
+        }
+    ]
+    ir = mod.compute_ir_metrics(results, cases, k=5)
+    assert ir["recall_at_k"] == 1.0
+    assert ir["mrr"] == 1.0
+    assert ir["ndcg_at_k"] == 1.0
+
+
+def test_compute_ir_metrics_zero_when_not_retrieved():
+    """When the expected chunk is absent, all metrics should be 0.0."""
+    mod = _get_compare_module()
+    cases = [
+        {
+            "case_id": "c1",
+            "expected_first_chunk_id": "chunk_a",
+            "expected_chunk_ids_any": [],
+        }
+    ]
+    results = [
+        {
+            "case_id": "c1",
+            "selected_chunk_ids": ["chunk_z"],
+        }
+    ]
+    ir = mod.compute_ir_metrics(results, cases, k=5)
+    assert ir["recall_at_k"] == 0.0
+    assert ir["mrr"] == 0.0
+    assert ir["ndcg_at_k"] == 0.0
+
+
+def test_compute_ir_metrics_partial_mrr():
+    """Relevant chunk at rank 2 → MRR = 0.5, Recall = 1."""
+    mod = _get_compare_module()
+    cases = [
+        {
+            "case_id": "c1",
+            "expected_first_chunk_id": "chunk_a",
+            "expected_chunk_ids_any": [],
+        }
+    ]
+    results = [
+        {
+            "case_id": "c1",
+            "selected_chunk_ids": ["chunk_z", "chunk_a"],
+        }
+    ]
+    ir = mod.compute_ir_metrics(results, cases, k=5)
+    assert ir["recall_at_k"] == 1.0
+    assert abs(ir["mrr"] - 0.5) < 1e-9
+
+
+def test_compute_ir_metrics_excludes_unannotated_cases():
+    """Cases without any relevant IDs must not affect metric denominators."""
+    mod = _get_compare_module()
+    cases = [
+        {
+            "case_id": "c_annotated",
+            "expected_first_chunk_id": "chunk_a",
+            "expected_chunk_ids_any": [],
+        },
+        {
+            "case_id": "c_unannotated",
+            "expected_first_chunk_id": None,
+            "expected_chunk_ids_any": [],
+        },
+    ]
+    results = [
+        {"case_id": "c_annotated", "selected_chunk_ids": ["chunk_a"]},
+        {"case_id": "c_unannotated", "selected_chunk_ids": []},
+    ]
+    ir = mod.compute_ir_metrics(results, cases, k=5)
+    # Denominator should be 1 (only the annotated case)
+    assert ir["recall_n"] == 1
+    assert ir["mrr_n"] == 1
+    assert ir["recall_at_k"] == 1.0
+    assert ir["mrr"] == 1.0
+
+
+def test_compute_ir_metrics_recall_uses_expected_chunk_ids_any():
+    """Recall@k should fire when any chunk from expected_chunk_ids_any is present."""
+    mod = _get_compare_module()
+    cases = [
+        {
+            "case_id": "c1",
+            "expected_first_chunk_id": None,
+            "expected_chunk_ids_any": ["chunk_b", "chunk_c"],
+        }
+    ]
+    results = [
+        {"case_id": "c1", "selected_chunk_ids": ["chunk_b"]},
+    ]
+    ir = mod.compute_ir_metrics(results, cases, k=5)
+    assert ir["recall_at_k"] == 1.0
+    # MRR denominator is 0 (no expected_first_chunk_id)
+    assert ir["mrr_n"] == 0
+
+
+def test_print_comparison_report_shows_ir_metrics(tmp_path, capsys):
+    """IR metrics table is printed when cases are provided."""
+    mod = _get_compare_module()
+    results = mod.compare_backends(
+        cases=SYNTHETIC_CASES,
+        chunks=SYNTHETIC_CHUNKS,
+        domain_config=SYNTHETIC_DOMAIN_CONFIG,
+        backend_names=["lexical_v0"],
+        top_k=5,
+        nodes_path=tmp_path / "nodes.jsonl",
+        edges_path=tmp_path / "edges.jsonl",
+        verbose=False,
+    )
+    mod.print_comparison_report(results, cases=SYNTHETIC_CASES, top_k=5, verbose=False)
+    captured = capsys.readouterr()
+    assert "Recall@5" in captured.out
+    assert "MRR" in captured.out
+    assert "nDCG@5" in captured.out
+
+
+
 
 
 def _real_paths():

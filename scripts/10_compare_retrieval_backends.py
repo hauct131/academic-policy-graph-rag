@@ -27,6 +27,7 @@ Usage:
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -234,6 +235,115 @@ def get_raw_backend_results(
 
 
 # ---------------------------------------------------------------------------
+# IR metric computation
+# ---------------------------------------------------------------------------
+
+
+def _relevant_ids_for_case(case: dict[str, Any]) -> list[str]:
+    """
+    Return the list of chunk IDs considered relevant for a case.
+    Combines expected_first_chunk_id and expected_chunk_ids_any.
+    Returns an empty list when no relevant chunks are defined (case excluded
+    from IR metric denominators).
+    """
+    relevant: list[str] = []
+    first = case.get("expected_first_chunk_id")
+    if first:
+        relevant.append(first)
+    for cid in (case.get("expected_chunk_ids_any") or []):
+        if cid not in relevant:
+            relevant.append(cid)
+    return relevant
+
+
+def compute_ir_metrics(
+    results: list[dict[str, Any]],
+    cases: list[dict[str, Any]],
+    k: int,
+) -> dict[str, float]:
+    """
+    Compute standard IR metrics from retrieval results.
+
+    Metrics:
+        recall_at_k  — fraction of cases (with relevant chunks defined) where
+                       at least one relevant chunk appears in the top-k results.
+        mrr          — Mean Reciprocal Rank over cases that have
+                       expected_first_chunk_id defined (rank of that chunk).
+        ndcg_at_k    — Mean nDCG@k with binary relevance, averaged over cases
+                       that have at least one relevant chunk defined.
+
+    Cases with no relevant chunks defined are excluded from each metric's
+    denominator, so the metrics are never diluted by unannotated cases.
+
+    Args:
+        results: Per-case result dicts from evaluate_backend_on_case.
+        cases:   Original eval case dicts (same order as results).
+        k:       Cutoff for Recall@k and nDCG@k.
+
+    Returns:
+        Dict with keys: recall_at_k, mrr, ndcg_at_k.
+    """
+    case_by_id = {c["case_id"]: c for c in cases}
+
+    recall_scores: list[float] = []
+    mrr_scores: list[float] = []
+    ndcg_scores: list[float] = []
+
+    for res in results:
+        original_case = case_by_id.get(res["case_id"], {})
+        relevant_ids = _relevant_ids_for_case(original_case)
+        selected_ids: list[str] = res.get("selected_chunk_ids", [])
+        top_k_ids = selected_ids[:k]
+
+        # --- Recall@k ---
+        if relevant_ids:
+            hit = any(cid in top_k_ids for cid in relevant_ids)
+            recall_scores.append(1.0 if hit else 0.0)
+
+        # --- MRR (uses expected_first_chunk_id only) ---
+        first_expected = original_case.get("expected_first_chunk_id")
+        if first_expected:
+            rr = 0.0
+            for rank, cid in enumerate(selected_ids, 1):
+                if cid == first_expected:
+                    rr = 1.0 / rank
+                    break
+            mrr_scores.append(rr)
+
+        # --- nDCG@k ---
+        if relevant_ids:
+            # Binary relevance: 1 if chunk in relevant set, else 0
+            gains = [
+                1.0 if cid in relevant_ids else 0.0
+                for cid in top_k_ids
+            ]
+            # DCG
+            dcg = sum(
+                gain / math.log2(rank + 1)
+                for rank, gain in enumerate(gains, 1)
+            )
+            # Ideal DCG: all relevant at top positions
+            n_relevant_in_k = min(len(relevant_ids), k)
+            idcg = sum(
+                1.0 / math.log2(rank + 1)
+                for rank in range(1, n_relevant_in_k + 1)
+            )
+            ndcg_scores.append(dcg / idcg if idcg > 0 else 0.0)
+
+    def _mean(scores: list[float]) -> float:
+        return sum(scores) / len(scores) if scores else 0.0
+
+    return {
+        "recall_at_k": _mean(recall_scores),
+        "mrr": _mean(mrr_scores),
+        "ndcg_at_k": _mean(ndcg_scores),
+        "recall_n": len(recall_scores),
+        "mrr_n": len(mrr_scores),
+        "ndcg_n": len(ndcg_scores),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Backend comparison across all cases
 # ---------------------------------------------------------------------------
 
@@ -358,11 +468,13 @@ def _col(text: str, width: int) -> str:
 
 def print_comparison_report(
     all_results: dict[str, list[dict[str, Any]]],
+    cases: list[dict[str, Any]] | None = None,
+    top_k: int = 5,
     verbose: bool = False,
 ) -> None:
     backend_names = list(all_results.keys())
 
-    # ── Summary table ────────────────────────────────────────────────────────
+    # ── Accuracy summary table ────────────────────────────────────────────────
     print("\n" + "=" * 74)
     print("Retrieval Backend Comparison — Summary")
     print("=" * 74)
@@ -395,6 +507,36 @@ def print_comparison_report(
             + f"{rate:.1f}%"
         )
     print("=" * 74)
+
+    # ── IR metrics table ─────────────────────────────────────────────────────
+    if cases is not None:
+        print(f"\nIR Metrics (k={top_k})")
+        print("-" * 74)
+        ir_header = (
+            _col("Backend", 18)
+            + _col(f"Recall@{top_k}", 12)
+            + _col("MRR", 10)
+            + _col(f"nDCG@{top_k}", 12)
+        )
+        print(ir_header)
+        print("-" * 74)
+        for backend_name, results in all_results.items():
+            ir = compute_ir_metrics(results, cases, k=top_k)
+            print(
+                _col(backend_name, 18)
+                + _col(f"{ir['recall_at_k']:.4f}", 12)
+                + _col(f"{ir['mrr']:.4f}", 10)
+                + _col(f"{ir['ndcg_at_k']:.4f}", 12)
+            )
+        print("-" * 74)
+        # Note on denominator
+        sample_results = next(iter(all_results.values()))
+        sample_ir = compute_ir_metrics(sample_results, cases, k=top_k)
+        print(
+            f"  (Recall/nDCG denominator: {sample_ir['recall_n']} cases with relevant chunks defined;"
+            f" MRR denominator: {sample_ir['mrr_n']} cases with expected_first_chunk_id)"
+        )
+        print("=" * 74)
 
     # ── Per-case differences ─────────────────────────────────────────────────
     if len(backend_names) >= 2:
@@ -605,8 +747,13 @@ def main(argv: list[str] | None = None) -> int:
         verbose=args.verbose,
     )
 
-    # Print comparison report
-    print_comparison_report(all_results, verbose=args.verbose)
+    # Print comparison report (pass cases for IR metrics)
+    print_comparison_report(
+        all_results,
+        cases=cases,
+        top_k=args.top_k,
+        verbose=args.verbose,
+    )
 
     # Diagnostics for failures
     if args.diagnose_failures:
