@@ -147,31 +147,6 @@ def extract_cross_references(
     return refs
 
 
-def build_reference_edge(
-    chunk_nid: str,
-    doc_id: str,
-    khoan: str | None,
-    diem: str | None,
-    dieu_num: str,
-) -> dict[str, Any]:
-    """
-    Build a REFERENCES edge from a chunk node to the target article chunk node.
-
-    Target node ID follows the pattern:
-      chunk:{doc_id}__dieu_{N}[__khoan_{K}]
-    Diem is stored in edge properties but does not alter the target node ID
-    because Diem-level chunks are not materialised as separate graph nodes.
-    """
-    target_chunk_id = f"{doc_id}__dieu_{dieu_num}"
-    if khoan:
-        target_chunk_id += f"__khoan_{khoan}"
-    target_nid = f"chunk:{target_chunk_id}"
-    props: dict[str, Any] = {"referenced_dieu": dieu_num}
-    if khoan:
-        props["referenced_khoan"] = khoan
-    if diem:
-        props["referenced_diem"] = diem
-    return make_edge(chunk_nid, target_nid, "REFERENCES", props)
 
 
 
@@ -245,6 +220,24 @@ def make_tag_node(tag_prefix: str, node_type: str, tag_value: str) -> dict[str, 
     }
 
 
+def make_external_ref_node(target_nid: str, dieu_num: str, khoan: str | None) -> dict[str, Any]:
+    """
+    Create a stub ExternalReference node for a cross-document target that
+    is referenced by at least 2 distinct source chunks (minimum support >= 2).
+    """
+    label = f"Điều {dieu_num}" + (f" Khoản {khoan}" if khoan else "")
+    return {
+        "node_id":    target_nid,
+        "node_type":  "ExternalReference",
+        "label":      label,
+        "properties": {
+            "referenced_dieu":  dieu_num,
+            "referenced_khoan": khoan or "",
+            "support":          0,   # will be updated after counting
+        },
+    }
+
+
 # ---------------------------------------------------------------------------
 # Edge factory
 # ---------------------------------------------------------------------------
@@ -270,9 +263,25 @@ def make_edge(
 
 def build_graph(
     chunks: list[dict[str, Any]],
+    min_external_support: int = 2,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Build deduplicated, deterministically-sorted node and edge lists.
+
+    Cross-reference containment rules
+    ----------------------------------
+    1. Active Chunk Registry: a set of all materialized chunk node IDs is
+       built before any cross-reference processing.
+    2. Dangling Edge Safeguard: a REFERENCES edge whose target does not exist
+       in the registry is NOT emitted as an internal edge.
+    3. Minimum Support for External References: external targets intercepted
+       in step 2 are counted across all source chunks. Only targets cited by
+       >= min_external_support distinct chunks receive a physical
+       ExternalReference node and an EXTERNAL_REFERENCES edge.
+    4. Isolated External References (support < min_external_support) are
+       stored as a JSON-encoded string in the source chunk node's
+       `isolated_external_refs` property to preserve context without
+       polluting graph topology.
 
     Returns (nodes, edges).
     """
@@ -285,11 +294,22 @@ def build_graph(
     def add_edge(edge: dict[str, Any]) -> None:
         edges.setdefault(edge["edge_id"], edge)
 
+    # ── Step 1: Build Active Chunk Registry ───────────────────────────────
+    active_chunk_nids: set[str] = {f"chunk:{c['chunk_id']}" for c in chunks}
+
+    # ── Pass 1: standard nodes / tag edges + collect cross-ref candidates ─
+    # external_refs: target_nid -> set of source chunk_nids that reference it
+    external_refs: dict[str, set[str]] = {}
+    # isolated metadata accumulator: chunk_nid -> list of ref strings
+    isolated_ref_strings: dict[str, list[str]] = {}
+    # Store cross-refs per chunk for Pass 2
+    chunk_crossrefs: dict[str, list[tuple[str, str | None, str | None, str]]] = {}
+
     for chunk in chunks:
-        doc_id        = chunk["doc_id"]
-        chunk_id      = chunk["chunk_id"]
-        doc_nid       = f"document:{doc_id}"
-        chunk_nid     = f"chunk:{chunk_id}"
+        doc_id    = chunk["doc_id"]
+        chunk_id  = chunk["chunk_id"]
+        doc_nid   = f"document:{doc_id}"
+        chunk_nid = f"chunk:{chunk_id}"
 
         add_node(make_document_node(chunk))
         add_node(make_chunk_node(chunk))
@@ -301,16 +321,81 @@ def build_graph(
                 add_node(tag_node)
                 add_edge(make_edge(chunk_nid, tag_node["node_id"], edge_type))
 
-        # Cross-reference edges: parse Điều/Khoản/Điểm mentions in text
+        # Collect cross-references for classification
+        crossrefs = []
         for khoan, diem, dieu_num in extract_cross_references(chunk):
-            ref_edge = build_reference_edge(chunk_nid, doc_id, khoan, diem, dieu_num)
-            add_edge(ref_edge)
+            target_chunk_id = f"{doc_id}__dieu_{dieu_num}"
+            if khoan:
+                target_chunk_id += f"__khoan_{khoan}"
+            target_nid = f"chunk:{target_chunk_id}"
+            crossrefs.append((target_nid, khoan, diem, dieu_num))
+
+            # ── Step 2: Dangling Edge Safeguard ───────────────────────────
+            if target_nid not in active_chunk_nids:
+                # External target — aggregate for minimum support counting
+                external_refs.setdefault(target_nid, set()).add(chunk_nid)
+
+        chunk_crossrefs[chunk_nid] = crossrefs
+
+    # ── Step 3: Enforce Minimum Support >= 2 for External References ──────
+    # Determine which external targets meet the threshold
+    high_support_externals: set[str] = {
+        target_nid
+        for target_nid, sources in external_refs.items()
+        if len(sources) >= min_external_support
+    }
+
+    # Materialise ExternalReference nodes for high-support targets
+    for target_nid, sources in external_refs.items():
+        if target_nid in high_support_externals:
+            # Parse dieu/khoan back from target_nid for label construction
+            # Format: chunk:{doc_id}__dieu_{N}[__khoan_{K}]
+            tail = target_nid.split("__dieu_", 1)[-1] if "__dieu_" in target_nid else ""
+            dieu_part, _, khoan_part = tail.partition("__khoan_")
+            ext_node = make_external_ref_node(target_nid, dieu_part, khoan_part or None)
+            ext_node["properties"]["support"] = len(sources)
+            add_node(ext_node)
+
+    # ── Pass 2: Emit edges now that external support is known ──────────────
+    for chunk in chunks:
+        chunk_nid = f"chunk:{chunk['chunk_id']}"
+        isolated: list[str] = []
+
+        for target_nid, khoan, diem, dieu_num in chunk_crossrefs.get(chunk_nid, []):
+            if target_nid in active_chunk_nids:
+                # Internal link — emit standard REFERENCES edge
+                props: dict[str, Any] = {"referenced_dieu": dieu_num}
+                if khoan:
+                    props["referenced_khoan"] = khoan
+                if diem:
+                    props["referenced_diem"] = diem
+                add_edge(make_edge(chunk_nid, target_nid, "REFERENCES", props))
+
+            elif target_nid in high_support_externals:
+                # High-support external — emit EXTERNAL_REFERENCES edge
+                props = {"referenced_dieu": dieu_num}
+                if khoan:
+                    props["referenced_khoan"] = khoan
+                if diem:
+                    props["referenced_diem"] = diem
+                add_edge(make_edge(chunk_nid, target_nid, "EXTERNAL_REFERENCES", props))
+
+            else:
+                # ── Step 4: Isolated external ref — store in metadata only ─
+                ref_str = f"Điều {dieu_num}"
+                if khoan:
+                    ref_str += f" Khoản {khoan}"
+                if diem:
+                    ref_str += f" Điểm {diem}"
+                isolated.append(ref_str)
+
+        # Inject isolated refs into the chunk node's properties
+        if isolated and chunk_nid in nodes:
+            nodes[chunk_nid]["properties"]["isolated_external_refs"] = isolated
 
     sorted_nodes = sorted(nodes.values(), key=lambda n: n["node_id"])
     sorted_edges = sorted(edges.values(), key=lambda e: e["edge_id"])
     return sorted_nodes, sorted_edges
-
-
 
 # ---------------------------------------------------------------------------
 # Summary
