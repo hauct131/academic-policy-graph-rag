@@ -27,6 +27,10 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from core import read_jsonl
+
+
 # Supported tag types and their node_id prefixes (mirrors 03_build_policy_graph.py)
 _VALID_TAG_TYPES: dict[str, str] = {
     "policy_area":          "policy_area",
@@ -46,15 +50,8 @@ _TEXT_PREVIEW_CHARS = 250
 # JSONL I/O
 # ---------------------------------------------------------------------------
 
-def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    """Read a JSONL file and return a list of dicts."""
-    records: list[dict[str, Any]] = []
-    with path.open(encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if line:
-                records.append(json.loads(line))
-    return records
+# read_jsonl is imported from core
+
 
 
 def index_nodes_by_id(nodes: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:

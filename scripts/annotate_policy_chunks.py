@@ -20,21 +20,17 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from core import normalize_text, read_jsonl
+
+
 
 # ---------------------------------------------------------------------------
 # Text normalisation (accent removal + lowercase, Vietnamese-safe)
 # ---------------------------------------------------------------------------
 
-def normalize_text(text: str) -> str:
-    """
-    Lowercase and remove Vietnamese/Latin diacritics for keyword matching.
+# normalize_text is imported from core
 
-    Does NOT modify the original chunk text — only used for comparison.
-    """
-    text = text.replace("đ", "d").replace("Đ", "D")
-    text = unicodedata.normalize("NFD", text)
-    text = "".join(c for c in text if unicodedata.category(c) != "Mn")
-    return text.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -392,14 +388,8 @@ def annotate_chunks(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
 # JSONL I/O
 # ---------------------------------------------------------------------------
 
-def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    chunks = []
-    with path.open(encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if line:
-                chunks.append(json.loads(line))
-    return chunks
+# read_jsonl is imported from core
+
 
 
 def write_jsonl(path: Path, chunks: list[dict[str, Any]]) -> None:

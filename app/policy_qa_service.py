@@ -13,12 +13,18 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 from datetime import datetime
 
-# Add scripts directory to path to load QA pipeline modules
+# Add workspace root and scripts to path
+root_path = str(Path(__file__).parent.parent)
+if root_path not in sys.path:
+    sys.path.insert(0, root_path)
+
 scripts_path = str(Path(__file__).parent.parent / "scripts")
 if scripts_path not in sys.path:
     sys.path.insert(0, scripts_path)
 
+from core import read_jsonl
 import importlib
+
 try:
     _qa = importlib.import_module("answer_policy_question")
     _retriever = importlib.import_module("retrieve_policy_chunks")
@@ -26,14 +32,12 @@ try:
     _reg = importlib.import_module("policy_document_registry")
     _service = importlib.import_module("policy_retrieval_service")
 except ImportError:
-    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
     _qa = importlib.import_module("answer_policy_question")
     _retriever = importlib.import_module("retrieve_policy_chunks")
     _domain = importlib.import_module("policy_domain_config")
     _reg = importlib.import_module("policy_document_registry")
     _service = importlib.import_module("policy_retrieval_service")
 
-read_jsonl = _retriever.read_jsonl
 answer_question = _qa.answer_question
 load_domain_config = _domain.load_domain_config
 infer_issues_from_domain = _domain.infer_issues_from_domain

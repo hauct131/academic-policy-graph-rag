@@ -19,6 +19,10 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from core import read_jsonl
+
+
 # Maps annotation field -> (node_id_prefix, node_type, edge_type)
 _TAG_FIELD_META: dict[str, tuple[str, str, str]] = {
     "policy_area":          ("policy_area",       "PolicyArea",       "CHUNK_HAS_POLICY_AREA"),
@@ -36,14 +40,8 @@ _TAG_FIELD_META: dict[str, tuple[str, str, str]] = {
 # JSONL I/O
 # ---------------------------------------------------------------------------
 
-def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    records: list[dict[str, Any]] = []
-    with path.open(encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if line:
-                records.append(json.loads(line))
-    return records
+# read_jsonl is imported from core
+
 
 
 def write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:

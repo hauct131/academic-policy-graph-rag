@@ -11,29 +11,19 @@ import unicodedata
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+import sys
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from core import normalize_text, read_jsonl
 
 
-def normalize_text(text: str | None) -> str:
-    """Lowercase and remove Vietnamese/Latin diacritics."""
-    if not text:
-        return ""
-    text = text.replace("đ", "d").replace("Đ", "D")
-    text = unicodedata.normalize("NFD", text)
-    text = "".join(c for c in text if unicodedata.category(c) != "Mn")
-    return text.lower()
+
+# normalize_text is imported from core
 
 
-def read_jsonl(path: str | Path) -> list[dict[str, Any]]:
-    """Read a JSONL file and return a list of dicts."""
-    p = Path(path)
-    if not p.exists():
-        return []
-    records = []
-    with p.open(encoding="utf-8") as fh:
-        for line in fh:
-            if line.strip():
-                records.append(json.loads(line))
-    return records
+
+# read_jsonl is imported from core
+
 
 
 def load_document_registry(path: str | Path = "domains/ou_academic_policy_v1/document_registry.jsonl") -> list[dict[str, Any]]:

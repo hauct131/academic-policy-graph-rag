@@ -10,16 +10,9 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
-
-def normalize_text(text: str | None) -> str:
-    """Lowercase and remove Vietnamese/Latin diacritics."""
-    if not text:
-        return ""
-    text = text.replace("đ", "d").replace("Đ", "D")
-    text = unicodedata.normalize("NFD", text)
-    text = "".join(c for c in text if unicodedata.category(c) != "Mn")
-    return text.lower()
-
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from core import normalize_text
 
 def load_domain_config(path: str | Path = "domains/ou_academic_policy_v1/domain.json") -> dict:
     """Load the JSON domain config from the specified path."""
