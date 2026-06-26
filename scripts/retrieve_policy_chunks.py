@@ -171,10 +171,38 @@ def load_graph_expansion(
     query: str,
     nodes_file: Path,
     edges_file: Path,
+    bonus_seed: float = 1.5,
+    bonus_hop2: float = 1.25,
+    max_bonus_per_chunk: float = 4.5,
 ) -> dict[str, float]:
     """
-    Identify tag nodes that match query tokens, then return a dict mapping
-    chunk_id → graph_bonus for connected chunks.
+    2-hop graph traversal expansion for query-driven chunk boosting.
+
+    Algorithm
+    ---------
+    Phase 1 — Tag Activation (unchanged from original):
+      Match query tokens against tag node values (PolicyArea, ActionTag, …).
+      Find all seed chunk nodes connected to matched tags via CHUNK_HAS_* edges.
+
+    Phase 2 — 1-hop neighbour traversal:
+      Follow REFERENCES and EXTERNAL_REFERENCES edges (both directions) from
+      every seed chunk node to find immediately connected chunk nodes.
+
+    Phase 3 — 2-hop neighbour traversal:
+      Repeat Phase 2 starting from hop-1 neighbours to capture hidden
+      prerequisite chains up to 2 edges away.
+
+    Bonus assignment
+    ----------------
+      Seeds and hop-1 nodes:  +bonus_seed (default 1.5) per activating path.
+      Hop-2 only nodes:       +bonus_hop2 (default 1.25) per activating path.
+      Accumulated bonus is capped at max_bonus_per_chunk (default 4.5) to
+      keep combined scores within the [0, 1] normalisation band used by the
+      scoring layer.
+
+    Returns
+    -------
+    dict mapping chunk_id (without the "chunk:" prefix) -> total graph bonus.
     """
     bonus_map: dict[str, float] = {}
     if not (nodes_file.exists() and edges_file.exists()):
@@ -187,41 +215,89 @@ def load_graph_expansion(
         query_tokens = set(tokenize(query))
         norm_query_phrase = normalize_text(query)
 
-        # Detect which tag nodes are matched by the query
-        activated_tag_ids = set()
+        # ── Phase 1: Tag activation ──────────────────────────────────────────
+        _TAG_NODE_TYPES = {
+            "PolicyArea", "ActionTag", "StudentStatusTag", "ProcedureTag",
+            "EvidenceGroup", "RiskTag", "RequirementTag", "TimeTag",
+        }
+        activated_tag_nids: set[str] = set()
         for node in nodes:
-            node_type = node.get("node_type", "")
-            # Verify it's a tag node
-            if node_type in (
-                "PolicyArea",
-                "ActionTag",
-                "StudentStatusTag",
-                "ProcedureTag",
-                "EvidenceGroup",
-                "RiskTag",
-                "RequirementTag",
-                "TimeTag",
-            ):
-                val = node.get("properties", {}).get("value", "")
-                norm_val = normalize_text(val)
-                if not norm_val:
-                    continue
-                # Match if tag value is one of query tokens or exists as substring
-                if norm_val in query_tokens or norm_val in norm_query_phrase:
-                    activated_tag_ids.add(node["node_id"])
+            if node.get("node_type", "") not in _TAG_NODE_TYPES:
+                continue
+            val = node.get("properties", {}).get("value", "")
+            norm_val = normalize_text(val)
+            if not norm_val:
+                continue
+            if norm_val in query_tokens or norm_val in norm_query_phrase:
+                activated_tag_nids.add(node["node_id"])
 
-        # Find chunks connected to activated tags
-        # Chunk nodes point to tag nodes (CHUNK_HAS_...)
+        # ── Build edge adjacency index for chunk↔chunk traversal ────────────
+        # Index edges by source and target for O(1) neighbour lookup.
+        # Only REFERENCES and EXTERNAL_REFERENCES edges carry article links.
+        _TRAVERSAL_EDGE_TYPES = {"REFERENCES", "EXTERNAL_REFERENCES"}
+
+        # forward: source_nid -> set of target_nids
+        fwd: dict[str, set[str]] = {}
+        # backward: target_nid -> set of source_nids
+        bwd: dict[str, set[str]] = {}
+
         for edge in edges:
-            target = edge.get("target", "")
-            source = edge.get("source", "")
-            if target in activated_tag_ids and source.startswith("chunk:"):
-                # Extract chunk_id from chunk:doc_id__dieu_1
-                chunk_id = source.split("chunk:", 1)[1]
-                bonus_map[chunk_id] = bonus_map.get(chunk_id, 0.0) + 1.5
+            etype = edge.get("edge_type", "")
+            if etype not in _TRAVERSAL_EDGE_TYPES:
+                continue
+            src = edge.get("source", "")
+            tgt = edge.get("target", "")
+            fwd.setdefault(src, set()).add(tgt)
+            bwd.setdefault(tgt, set()).add(src)
+
+        def _neighbours(nid: str) -> set[str]:
+            """Return all chunk nodes reachable in one traversal hop."""
+            return (fwd.get(nid, set()) | bwd.get(nid, set()))
+
+        # ── Identify seed chunk nodes via tag edges ──────────────────────────
+        seed_nids: set[str] = set()
+        for edge in edges:
+            tgt = edge.get("target", "")
+            src = edge.get("source", "")
+            if tgt in activated_tag_nids and src.startswith("chunk:"):
+                seed_nids.add(src)
+
+        def _add_bonus(chunk_nid: str, amount: float) -> None:
+            cid = chunk_nid[len("chunk:"):]   # strip prefix
+            bonus_map[cid] = min(
+                bonus_map.get(cid, 0.0) + amount,
+                max_bonus_per_chunk,
+            )
+
+        # ── Phase 2: 1-hop traversal from seeds ─────────────────────────────
+        hop1_nids: set[str] = set()
+        for seed in seed_nids:
+            _add_bonus(seed, bonus_seed)
+            for nbr in _neighbours(seed):
+                if nbr.startswith("chunk:"):
+                    hop1_nids.add(nbr)
+
+        # Seeds already get the full bonus; hop-1 nodes that are NOT seeds
+        # also receive the full bonus (they are direct article neighbours).
+        new_hop1 = hop1_nids - seed_nids
+        for nid in new_hop1:
+            _add_bonus(nid, bonus_seed)
+
+        # ── Phase 3: 2-hop traversal from hop-1 neighbours ──────────────────
+        hop2_nids: set[str] = set()
+        for h1 in hop1_nids:
+            for nbr in _neighbours(h1):
+                if nbr.startswith("chunk:"):
+                    hop2_nids.add(nbr)
+
+        # Only nodes that are new at hop-2 (not already seeded/hop-1) get
+        # the decayed bonus to penalise inference drift.
+        new_hop2 = hop2_nids - seed_nids - hop1_nids
+        for nid in new_hop2:
+            _add_bonus(nid, bonus_hop2)
 
     except Exception as e:
-        print(f"[WARNING] Failed to load/parse graph expansion: {e}", file=sys.stderr)
+        print(f"[WARNING] Failed during graph expansion: {e}", file=sys.stderr)
 
     return bonus_map
 
