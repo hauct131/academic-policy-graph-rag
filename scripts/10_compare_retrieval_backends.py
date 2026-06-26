@@ -17,6 +17,12 @@ Answer-text evaluation is NOT performed here. Use 08_eval_policy_cases.py for th
 Usage:
     python scripts/10_compare_retrieval_backends.py
     python scripts/10_compare_retrieval_backends.py --backends lexical_v0,bm25_like_v0 --verbose
+    python scripts/10_compare_retrieval_backends.py \\
+        --backends lexical_v0,bm25_like_v0 \\
+        --case-id graduation_transcript_procedure_001 \\
+        --diagnose-failures \\
+        --show-raw-top \\
+        --verbose
 """
 
 import argparse
@@ -51,7 +57,6 @@ PolicyRetrievalService = _service.PolicyRetrievalService
 get_retrieval_backend = _backends_mod.get_retrieval_backend
 
 
-
 # ---------------------------------------------------------------------------
 # Data helpers
 # ---------------------------------------------------------------------------
@@ -68,6 +73,27 @@ def load_cases(path: str | Path) -> list[dict[str, Any]]:
             if line.strip():
                 cases.append(json.loads(line))
     return cases
+
+
+def filter_cases_by_id(
+    cases: list[dict[str, Any]],
+    case_id: str | None,
+) -> list[dict[str, Any]]:
+    """
+    Return cases filtered to a single case_id when specified.
+
+    Args:
+        cases: Full list of evaluation cases.
+        case_id: If provided, return only the case with this ID.
+                 If None or empty, return the full list unchanged.
+
+    Returns:
+        Filtered (or original) list of cases.
+    """
+    if not case_id:
+        return cases
+    matched = [c for c in cases if c["case_id"] == case_id]
+    return matched  # may be empty — caller handles that
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +135,7 @@ def evaluate_backend_on_case(
     # Infer issues
     issues = infer_case_issues(question, domain_config=domain_config)
 
-    # Retrieve
+    # Retrieve through service (source selection + strict pruning applied)
     selected_pairs = service.retrieve_for_issues(
         issues=issues,
         question=question,
@@ -138,6 +164,7 @@ def evaluate_backend_on_case(
 
     return {
         "case_id": case["case_id"],
+        "question": question,
         "backend_name": backend_name,
         "passed": passed,
         "checks": {
@@ -146,10 +173,64 @@ def evaluate_backend_on_case(
             "negative_chunk_pass": negative_chunk_pass,
         },
         "selected_chunk_ids": selected_ids,
+        "selected_pairs": selected_pairs,  # (chunk, score) list for diagnostics
         "first_chunk_id": first_chunk_id,
         "expected_first_chunk_id": expected_first_chunk_id,
         "expected_chunk_ids_any": expected_chunk_ids_any,
     }
+
+
+def get_raw_backend_results(
+    case: dict[str, Any],
+    chunks: list[dict[str, Any]],
+    domain_config: dict[str, Any],
+    backend_name: str,
+    top_k: int,
+    nodes_path: Path,
+    edges_path: Path,
+) -> list[tuple[dict[str, Any], float]]:
+    """
+    Retrieve raw backend scores BEFORE source selection and strict pruning.
+
+    This exposes the backend's raw ranking, useful for diagnosing whether a
+    failure is due to backend scoring, source selection, or strict pruning.
+
+    Returns:
+        List of (chunk, score) tuples from the backend, sorted by score desc.
+    """
+    backend = get_retrieval_backend(backend_name)
+    issues = infer_case_issues(case["question"], domain_config=domain_config)
+
+    # Build graph bonus map via a temporary service (same logic, no production change)
+    service = PolicyRetrievalService(
+        chunks=chunks,
+        nodes_file=nodes_path,
+        edges_file=edges_path,
+        backend_name=backend_name,
+    )
+    graph_bonus_map = service.build_graph_bonus_map(case["question"])
+
+    # Call backend directly for each issue and aggregate raw results
+    all_raw: list[tuple[dict[str, Any], float]] = []
+    seen_ids: set[str] = set()
+
+    for issue in issues:
+        raw = backend.retrieve(
+            chunks=chunks,
+            query=issue["query"],
+            top_k=top_k,
+            policy_area=issue.get("policy_area"),
+            graph_bonus_map=graph_bonus_map,
+        )
+        for chunk, score in raw:
+            cid = chunk.get("chunk_id", "")
+            if cid not in seen_ids:
+                seen_ids.add(cid)
+                all_raw.append((chunk, score))
+
+    # Re-sort by score descending
+    all_raw.sort(key=lambda x: -x[1])
+    return all_raw[:top_k]
 
 
 # ---------------------------------------------------------------------------
@@ -193,6 +274,79 @@ def compare_backends(
 
 
 # ---------------------------------------------------------------------------
+# Diagnostics rendering
+# ---------------------------------------------------------------------------
+
+
+def _chunk_preview(chunk: dict[str, Any], max_len: int = 120) -> str:
+    text = chunk.get("text", "")
+    return (text[:max_len] + "...") if len(text) > max_len else text
+
+
+def print_failure_diagnosis(
+    result: dict[str, Any],
+    case: dict[str, Any],
+    raw_pairs: list[tuple[dict[str, Any], float]] | None = None,
+) -> None:
+    """
+    Print detailed diagnostics for a single failed retrieval result.
+
+    Args:
+        result: The result dict from evaluate_backend_on_case.
+        case: The original eval case dict (for question, notes, etc.).
+        raw_pairs: If provided, raw backend scores before source selection/pruning.
+    """
+    sep = "─" * 70
+    print(f"\n{sep}")
+    print(f"  DIAGNOSIS: [{result['backend_name']}] {result['case_id']}")
+    print(sep)
+    print(f"  Question              : {result['question']}")
+    print(f"  Notes                 : {case.get('notes', '')}")
+    print(f"  Checks                : {result['checks']}")
+    print(f"  Expected first chunk  : {result['expected_first_chunk_id']}")
+    print(f"  Expected any of       : {result['expected_chunk_ids_any']}")
+    print(f"  Actual first chunk    : {result['first_chunk_id']}")
+    print(f"  Selected IDs          : {result['selected_chunk_ids']}")
+
+    # Selected chunks with detail
+    selected_pairs: list[tuple[dict[str, Any], float]] = result.get("selected_pairs", [])
+    if selected_pairs:
+        print(f"\n  Selected chunks (after source selection + pruning):")
+        for rank, (chunk, score) in enumerate(selected_pairs, 1):
+            print(f"    [{rank}] score={score:.4f}  id={chunk.get('chunk_id')}")
+            print(f"         doc_id       : {chunk.get('doc_id')}")
+            print(f"         section_title: {chunk.get('section_title')}")
+            print(f"         policy_area  : {chunk.get('policy_area')}")
+            print(f"         action_tags  : {chunk.get('action_tags')}")
+            print(f"         preview      : {_chunk_preview(chunk)}")
+    else:
+        print("  (no chunks selected after pruning)")
+
+    # Raw backend results (before source selection/pruning)
+    if raw_pairs is not None:
+        print(f"\n  Raw backend results (before source selection + pruning), top {len(raw_pairs)}:")
+        if raw_pairs:
+            for rank, (chunk, score) in enumerate(raw_pairs, 1):
+                cid = chunk.get("chunk_id", "")
+                # Flag expected chunks
+                is_expected_first = (cid == result["expected_first_chunk_id"])
+                is_expected_any = cid in (result["expected_chunk_ids_any"] or [])
+                marker = ""
+                if is_expected_first:
+                    marker = "  ← EXPECTED FIRST"
+                elif is_expected_any:
+                    marker = "  ← EXPECTED ANY"
+                print(f"    [{rank}] score={score:.4f}  id={cid}{marker}")
+                print(f"         section_title: {chunk.get('section_title')}")
+                print(f"         policy_area  : {chunk.get('policy_area')}")
+                print(f"         preview      : {_chunk_preview(chunk, 100)}")
+        else:
+            print("  (no raw results)")
+
+    print(sep)
+
+
+# ---------------------------------------------------------------------------
 # Report printing
 # ---------------------------------------------------------------------------
 
@@ -224,7 +378,6 @@ def print_comparison_report(
     print(header)
     print("-" * 74)
 
-    summary: dict[str, dict[str, Any]] = {}
     for backend_name, results in all_results.items():
         total = len(results)
         first_ok = sum(1 for r in results if r["checks"]["first_chunk_pass"])
@@ -232,14 +385,6 @@ def print_comparison_report(
         neg_ok = sum(1 for r in results if r["checks"]["negative_chunk_pass"])
         passed = sum(1 for r in results if r["passed"])
         rate = (passed / total * 100) if total > 0 else 0.0
-        summary[backend_name] = {
-            "total": total,
-            "first_ok": first_ok,
-            "any_ok": any_ok,
-            "neg_ok": neg_ok,
-            "passed": passed,
-            "rate": rate,
-        }
         print(
             _col(backend_name, 18)
             + _col(total, 7)
@@ -256,7 +401,6 @@ def print_comparison_report(
         print("\nPer-case differences (cases where backends disagree):")
         print("-" * 74)
 
-        # Collect all case IDs in order
         first_backend = backend_names[0]
         case_ids = [r["case_id"] for r in all_results[first_backend]]
 
@@ -269,7 +413,11 @@ def print_comparison_report(
                         results_by_backend[bn] = r
                         break
 
-            pass_states = [results_by_backend[bn]["passed"] for bn in backend_names if bn in results_by_backend]
+            pass_states = [
+                results_by_backend[bn]["passed"]
+                for bn in backend_names
+                if bn in results_by_backend
+            ]
             if len(set(pass_states)) > 1 or verbose:
                 diffs_found = True
                 print(f"\n  Case: {case_id}")
@@ -361,6 +509,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Print verbose case-level details",
     )
+    parser.add_argument(
+        "--case-id",
+        default=None,
+        metavar="CASE_ID",
+        help="Only evaluate this single case ID",
+    )
+    parser.add_argument(
+        "--diagnose-failures",
+        action="store_true",
+        help="Print detailed diagnostics for each failing case/backend",
+    )
+    parser.add_argument(
+        "--show-raw-top",
+        action="store_true",
+        help=(
+            "For failed cases, also print raw backend scores before "
+            "source selection/pruning (helps identify where the failure originates)"
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -405,13 +572,25 @@ def main(argv: list[str] | None = None) -> int:
 
     # Load data
     print(f"Loading evaluation cases from: {cases_path}")
-    cases = load_cases(cases_path)
+    all_cases = load_cases(cases_path)
     print(f"Loading chunks from          : {chunks_path}")
     chunks = read_jsonl(chunks_path)
     print(f"Loading domain config from   : {config_path}")
     domain_config = load_domain_config(config_path)
+
+    # Apply case-id filter
+    cases = filter_cases_by_id(all_cases, args.case_id)
+    if args.case_id and not cases:
+        print(
+            f"[WARNING] No case found with case_id={args.case_id!r}. "
+            f"Available IDs: {[c['case_id'] for c in all_cases]}",
+            file=sys.stderr,
+        )
+        return 1
+
     print(f"Backends to compare          : {', '.join(backend_names)}")
-    print(f"Cases                        : {len(cases)}")
+    print(f"Cases evaluated              : {len(cases)}"
+          + (f" (filtered to: {args.case_id})" if args.case_id else ""))
     print(f"Chunks                       : {len(chunks)}")
 
     # Run comparison
@@ -426,8 +605,39 @@ def main(argv: list[str] | None = None) -> int:
         verbose=args.verbose,
     )
 
-    # Print report
+    # Print comparison report
     print_comparison_report(all_results, verbose=args.verbose)
+
+    # Diagnostics for failures
+    if args.diagnose_failures:
+        # Build a lookup from case_id → case dict for easy access
+        case_by_id = {c["case_id"]: c for c in cases}
+
+        any_failure_printed = False
+        for backend_name, results in all_results.items():
+            for result in results:
+                if not result["passed"]:
+                    any_failure_printed = True
+                    original_case = case_by_id.get(result["case_id"], {})
+                    raw_pairs = None
+                    if args.show_raw_top:
+                        raw_pairs = get_raw_backend_results(
+                            case=original_case,
+                            chunks=chunks,
+                            domain_config=domain_config,
+                            backend_name=backend_name,
+                            top_k=args.top_k,
+                            nodes_path=nodes_path,
+                            edges_path=edges_path,
+                        )
+                    print_failure_diagnosis(
+                        result=result,
+                        case=original_case,
+                        raw_pairs=raw_pairs,
+                    )
+
+        if not any_failure_printed:
+            print("\n[OK] No failures to diagnose — all cases passed for all backends.")
 
     # Return 0 if at least one backend achieved 100% pass on retrieval checks
     any_perfect = any(

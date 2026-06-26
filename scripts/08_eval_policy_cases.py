@@ -9,6 +9,8 @@ verifying correctness of retrieval and generated answers.
 import argparse
 import json
 import sys
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -61,10 +63,21 @@ def evaluate_case(
     chunks: list[dict[str, Any]],
     domain_config: dict[str, Any],
     top_k: int,
-    nodes_path: Path,
-    edges_path: Path
+    retrieval_service: "PolicyRetrievalService",
 ) -> dict[str, Any]:
-    """Evaluate a single test case and return verification results."""
+    """
+    Evaluate a single test case and return verification results, including latency.
+
+    Latency covers the real production pipeline: answer_question() which
+    internally performs retrieval + answer generation. The service is NOT
+    re-created per case; it is passed in from main() to avoid measuring
+    initialization overhead.
+
+    retrieve_for_issues() is called separately (outside the timer) only to
+    obtain selected_ids needed for correctness assertions (first_chunk_pass,
+    negative_chunk_pass). This is evaluation bookkeeping, not part of the
+    measured production path.
+    """
     question = case["question"]
     expected_issue_types = case.get("expected_issue_types", [])
     expected_first_chunk_id = case.get("expected_first_chunk_id")
@@ -72,34 +85,15 @@ def evaluate_case(
     expected_answer_contains_any = case.get("expected_answer_contains_any", [])
     negative_chunk_ids = case.get("negative_chunk_ids", [])
 
-    # Initialize retrieval service
-    retrieval_service = PolicyRetrievalService(
-        chunks=chunks,
-        nodes_file=nodes_path,
-        edges_file=edges_path,
-    )
-
-    # 1. Infer issues
+    # 1. Infer issues (lightweight keyword pass, not part of timed pipeline)
     inferred = infer_case_issues(question, domain_config=domain_config)
     inferred_types = [iss["issue_type"] for iss in inferred]
 
-    # 2. Retrieve selected sources
-    selected_chunks = []
-    selected = retrieval_service.retrieve_for_issues(
-        issues=inferred,
-        question=question,
-        top_k=top_k,
-        max_sources_per_issue=min(3, top_k),
-        use_graph=True,
-        strict_pruning=True,
-    )
-    for chunk, score in selected:
-        selected_chunks.append(chunk)
+    # --- Latency measurement: covers retrieve + answer generation ---
+    # answer_question() calls retrieval_service.retrieve_for_issue() per issue
+    # internally before generating the answer. This is the real production path.
+    start = time.perf_counter()
 
-    selected_ids = [c["chunk_id"] for c in selected_chunks]
-    first_chunk_id = selected_ids[0] if selected_ids else None
-
-    # 3. Generate answer
     answer = answer_question(
         question=question,
         chunks=chunks,
@@ -108,7 +102,25 @@ def evaluate_case(
         retrieval_service=retrieval_service,
     )
 
-    # 4. Run assertions
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    # ----------------------------------------------------------------
+
+    # 2. Obtain selected_ids for correctness assertions.
+    # retrieve_for_issues() is called once outside the timer as evaluation
+    # bookkeeping. answer_question() already performed retrieval internally
+    # above; this call is purely so we can inspect which chunks were ranked first.
+    selected = retrieval_service.retrieve_for_issues(
+        issues=inferred,
+        question=question,
+        top_k=top_k,
+        max_sources_per_issue=min(3, top_k),
+        use_graph=True,
+        strict_pruning=True,
+    )
+    selected_ids = [chunk["chunk_id"] for chunk, _score in selected]
+    first_chunk_id = selected_ids[0] if selected_ids else None
+
+    # 3. Run assertions
     issue_types_pass = all(t in inferred_types for t in expected_issue_types)
 
     first_chunk_pass = True
@@ -139,6 +151,7 @@ def evaluate_case(
     return {
         "case_id": case["case_id"],
         "passed": passed,
+        "elapsed_ms": elapsed_ms,
         "checks": {
             "issue_types_pass": issue_types_pass,
             "first_chunk_pass": first_chunk_pass,
@@ -195,7 +208,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    
+
     cases_path = Path(args.cases_file)
     chunks_path = Path(args.chunks_file)
     nodes_path = Path(args.nodes_file)
@@ -217,6 +230,14 @@ def main(argv: list[str] | None = None) -> int:
     chunks = read_jsonl(chunks_path)
     domain_config = load_domain_config(config_path)
 
+    # Build the retrieval service ONCE. Initializing per-case would load graph
+    # files repeatedly and inflate the latency baseline with setup overhead.
+    retrieval_service = PolicyRetrievalService(
+        chunks=chunks,
+        nodes_file=nodes_path,
+        edges_file=edges_path,
+    )
+
     passed_count = 0
     results = []
 
@@ -230,8 +251,7 @@ def main(argv: list[str] | None = None) -> int:
             chunks=chunks,
             domain_config=domain_config,
             top_k=args.top_k,
-            nodes_path=nodes_path,
-            edges_path=edges_path,
+            retrieval_service=retrieval_service,
         )
         results.append(res)
         if res["passed"]:
@@ -251,6 +271,20 @@ def main(argv: list[str] | None = None) -> int:
     failed_count = total - passed_count
     pass_rate = (passed_count / total) * 100 if total > 0 else 0.0
 
+    # --- Compute latency statistics ---
+    latencies = [r["elapsed_ms"] for r in results]
+    avg_latency_ms = sum(latencies) / len(latencies) if latencies else 0.0
+
+    # --- Compute pass rates for baseline result (reuse per-case check results) ---
+    first_chunk_pass_count = sum(
+        1 for r in results if r["checks"]["first_chunk_pass"]
+    )
+    negative_chunk_pass_count = sum(
+        1 for r in results if r["checks"]["negative_chunk_pass"]
+    )
+    first_chunk_pass_rate = first_chunk_pass_count / total if total > 0 else 0.0
+    negative_chunk_pass_rate = negative_chunk_pass_count / total if total > 0 else 0.0
+
     print("============================================================")
     print("Evaluation Summary")
     print("============================================================")
@@ -259,6 +293,24 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Failed      : {failed_count}")
     print(f"  Pass Rate   : {pass_rate:.1f}%")
     print("============================================================")
+    print(f"Average latency: {avg_latency_ms:.2f} ms")
+
+    # --- Save baseline result ---
+    eval_dir = Path("data/eval")
+    eval_dir.mkdir(parents=True, exist_ok=True)
+    baseline_path = eval_dir / "baseline_result.json"
+    baseline_result = {
+        "run_at": datetime.now().isoformat(),
+        "backend": "lexical_v0",
+        "total_cases": total,
+        "passed": passed_count,
+        "first_chunk_pass_rate": first_chunk_pass_rate,
+        "negative_chunk_pass_rate": negative_chunk_pass_rate,
+        "avg_latency_ms": avg_latency_ms,
+    }
+    with baseline_path.open("w", encoding="utf-8") as fh:
+        json.dump(baseline_result, fh, indent=2, ensure_ascii=False)
+    print(f"Baseline result saved to: {baseline_path}")
 
     return 0 if failed_count == 0 else 1
 

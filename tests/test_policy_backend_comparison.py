@@ -344,3 +344,107 @@ def test_grad_conditions_001_passes_lexical_with_real_chunks():
         f"selected={result['selected_chunk_ids']}"
     )
     assert result["first_chunk_id"] == "ou_fulltime_credit_training_regulation_2016__dieu_27"
+
+
+# ---------------------------------------------------------------------------
+# New tests for analyze-bm25-retrieval-gap
+# ---------------------------------------------------------------------------
+
+def test_case_id_filtering_helper_works():
+    mod = _get_compare_module()
+    cases = [
+        {"case_id": "case_1", "question": "Q1"},
+        {"case_id": "case_2", "question": "Q2"},
+    ]
+    # Filter by specific case_id
+    filtered = mod.filter_cases_by_id(cases, "case_1")
+    assert len(filtered) == 1
+    assert filtered[0]["case_id"] == "case_1"
+
+    # Filter with None/empty should return all
+    assert len(mod.filter_cases_by_id(cases, None)) == 2
+    assert len(mod.filter_cases_by_id(cases, "")) == 2
+
+
+def test_diagnostic_output_renders_failed_synthetic_case(capsys):
+    mod = _get_compare_module()
+    synthetic_case = {
+        "case_id": "synth_fail_001",
+        "question": "Question text",
+        "notes": "Some notes here",
+    }
+    synthetic_result = {
+        "case_id": "synth_fail_001",
+        "question": "Question text",
+        "backend_name": "bm25_like_v0",
+        "passed": False,
+        "checks": {
+            "first_chunk_pass": False,
+            "chunk_any_pass": True,
+            "negative_chunk_pass": True,
+        },
+        "selected_chunk_ids": ["chunk_b"],
+        "selected_pairs": [
+            ({"chunk_id": "chunk_b", "text": "This is chunk b text", "doc_id": "doc_1", "section_title": "Sec B", "policy_area": ["test"], "action_tags": []}, 0.85)
+        ],
+        "first_chunk_id": "chunk_b",
+        "expected_first_chunk_id": "chunk_a",
+        "expected_chunk_ids_any": ["chunk_b"],
+    }
+    raw_pairs = [
+        ({"chunk_id": "chunk_a", "text": "This is chunk a text", "doc_id": "doc_1", "section_title": "Sec A", "policy_area": ["test"]}, 0.90),
+        ({"chunk_id": "chunk_b", "text": "This is chunk b text", "doc_id": "doc_1", "section_title": "Sec B", "policy_area": ["test"]}, 0.85),
+    ]
+
+    mod.print_failure_diagnosis(synthetic_result, synthetic_case, raw_pairs=raw_pairs)
+    captured = capsys.readouterr()
+    assert "DIAGNOSIS: [bm25_like_v0] synth_fail_001" in captured.out
+    assert "Question text" in captured.out
+    assert "Some notes here" in captured.out
+    assert "chunk_a" in captured.out
+    assert "chunk_b" in captured.out
+
+
+def test_unknown_case_id_returns_clear_failure_or_warning_message(capsys):
+    mod = _get_compare_module()
+    # Running main with non-existent case_id should return 1
+    # We pass temporary paths to avoid errors from main loading chunks
+    paths = _real_paths()
+    if not paths["chunks"].exists():
+        pytest.skip("Real chunks file needed for integration test of main()")
+
+    # Run main with a bad case-id
+    ret = mod.main([
+        "--case-id", "non_existent_case_9999",
+        "--cases-file", str(paths["cases"]),
+        "--chunks-file", str(paths["chunks"]),
+        "--nodes-file", str(paths["nodes"]),
+        "--edges-file", str(paths["edges"]),
+        "--domain-config", str(paths["config"]),
+    ])
+    assert ret == 1
+    captured = capsys.readouterr()
+    assert "No case found with case_id='non_existent_case_9999'" in captured.err
+
+
+def test_real_case_diagnostic_run_exits_successfully():
+    paths = _real_paths()
+    if not paths["chunks"].exists():
+        pytest.skip("Generated chunks not found. Skipping real-data diagnostic test.")
+
+    mod = _get_compare_module()
+    # Run main targeting graduation_transcript_procedure_001 with diagnostics and raw top
+    ret = mod.main([
+        "--case-id", "graduation_transcript_procedure_001",
+        "--diagnose-failures",
+        "--show-raw-top",
+        "--cases-file", str(paths["cases"]),
+        "--chunks-file", str(paths["chunks"]),
+        "--nodes-file", str(paths["nodes"]),
+        "--edges-file", str(paths["edges"]),
+        "--domain-config", str(paths["config"]),
+        "--backends", "lexical_v0,bm25_like_v0",
+    ])
+    # Should exit successfully (0) because lexical_v0 passes graduation_transcript_procedure_001 perfectly
+    assert ret == 0
+
