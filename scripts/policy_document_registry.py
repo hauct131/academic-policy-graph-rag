@@ -113,7 +113,7 @@ def infer_time_context(question: str) -> dict[str, Any]:
         "has_deadline_intent": False
     }
 
-    if "hoc ky nay" in norm or "hoc ky hien tai" in norm:
+    if "hoc ky nay" in norm or "hoc ky hien tai" in norm or "nam hoc nay" in norm or "han dang ky" in norm:
         context["current_semester"] = True
 
     if re.search(r"\b(hk|hoc ky)\s*1\b", norm):

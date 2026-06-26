@@ -135,7 +135,7 @@ class PolicyQAService:
                 policy_area=issue["policy_area"],
             ):
                 warnings.append(
-                    f"chưa có thông báo học kỳ hiện tại cho {issue['policy_area']}"
+                    f"Chưa có thông báo học kỳ hiện tại cho {issue['policy_area']}"
                 )
 
         metadata = {
@@ -144,6 +144,7 @@ class PolicyQAService:
             "uses_document_registry": True,
             "uses_graph": uses_graph,
             "retrieval_backend": self.retrieval_service.backend_name,
+            "is_time_sensitive": _reg.requires_current_notice(question),
         }
 
         return answer, metadata, warnings
