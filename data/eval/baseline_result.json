@@ -1,9 +1,9 @@
 {
-  "run_at": "2026-06-27T01:31:03.685598",
+  "run_at": "2026-06-27T01:37:47.243135",
   "backend": "lexical_v0",
   "total_cases": 31,
   "passed": 31,
   "first_chunk_pass_rate": 1.0,
   "negative_chunk_pass_rate": 1.0,
-  "avg_latency_ms": 7.014092678981533
+  "avg_latency_ms": 7.1242299670684
 }
