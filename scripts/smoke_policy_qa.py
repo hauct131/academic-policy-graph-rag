@@ -14,21 +14,11 @@ from typing import Any
 # Ensure scripts folder is in python path
 sys.path.insert(0, str(Path(__file__).parent.absolute()))
 
-import importlib
-try:
-    _qa = importlib.import_module("answer_policy_question")
-    _retriever = importlib.import_module("retrieve_policy_chunks")
-    _domain = importlib.import_module("policy_domain_config")
-    _reg = importlib.import_module("policy_document_registry")
-    _service = importlib.import_module("policy_retrieval_service")
-except ImportError:
-    # Alternate path fallback
-    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _qa = importlib.import_module("answer_policy_question")
-    _retriever = importlib.import_module("retrieve_policy_chunks")
-    _domain = importlib.import_module("policy_domain_config")
-    _reg = importlib.import_module("policy_document_registry")
-    _service = importlib.import_module("policy_retrieval_service")
+import answer_policy_question as _qa
+import retrieve_policy_chunks as _retriever
+import policy_domain_config as _domain
+import policy_document_registry as _reg
+import policy_retrieval_service as _service
 
 read_jsonl = _retriever.read_jsonl
 infer_case_issues = _qa.infer_case_issues

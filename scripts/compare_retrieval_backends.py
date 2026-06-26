@@ -35,21 +35,11 @@ from typing import Any
 # Ensure scripts folder is in python path
 sys.path.insert(0, str(Path(__file__).parent.absolute()))
 
-import importlib
-
-try:
-    _retriever = importlib.import_module("retrieve_policy_chunks")
-    _qa = importlib.import_module("answer_policy_question")
-    _domain = importlib.import_module("policy_domain_config")
-    _service = importlib.import_module("policy_retrieval_service")
-    _backends_mod = importlib.import_module("policy_retrieval_backends")
-except ImportError:
-    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _retriever = importlib.import_module("retrieve_policy_chunks")
-    _qa = importlib.import_module("answer_policy_question")
-    _domain = importlib.import_module("policy_domain_config")
-    _service = importlib.import_module("policy_retrieval_service")
-    _backends_mod = importlib.import_module("policy_retrieval_backends")
+import retrieve_policy_chunks as _retriever
+import answer_policy_question as _qa
+import policy_domain_config as _domain
+import policy_retrieval_service as _service
+import policy_retrieval_backends as _backends_mod
 
 read_jsonl = _retriever.read_jsonl
 infer_case_issues = _qa.infer_case_issues

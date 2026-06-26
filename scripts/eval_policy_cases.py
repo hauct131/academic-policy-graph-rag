@@ -16,32 +16,15 @@ from typing import Any
 
 # Ensure scripts directory is in path
 sys.path.insert(0, str(Path(__file__).parent.absolute()))
-import importlib
 
-try:
-    _qa = importlib.import_module("answer_policy_question")
-except ImportError:
-    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _qa = importlib.import_module("answer_policy_question")
+import answer_policy_question as _qa
+import policy_retrieval_service as _service
+import policy_domain_config as _domain
 
 infer_case_issues = _qa.infer_case_issues
 answer_question = _qa.answer_question
 read_jsonl = _qa.read_jsonl
-
-try:
-    _service = importlib.import_module("policy_retrieval_service")
-except ImportError:
-    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _service = importlib.import_module("policy_retrieval_service")
-
 PolicyRetrievalService = _service.PolicyRetrievalService
-
-try:
-    _domain = importlib.import_module("policy_domain_config")
-except ImportError:
-    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _domain = importlib.import_module("policy_domain_config")
-
 load_domain_config = _domain.load_domain_config
 
 

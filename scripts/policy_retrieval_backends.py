@@ -20,16 +20,10 @@ import sys
 from pathlib import Path
 from typing import Any, Protocol
 
-# Ensure scripts folder is in python path for the importlib dance
+# Ensure scripts folder is in python path
 sys.path.insert(0, str(Path(__file__).parent.absolute()))
 
-import importlib
-
-try:
-    _retriever = importlib.import_module("retrieve_policy_chunks")
-except ImportError:
-    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _retriever = importlib.import_module("retrieve_policy_chunks")
+import retrieve_policy_chunks as _retriever
 
 _retrieve_chunks = _retriever.retrieve_chunks
 _filter_chunks = _retriever.filter_chunks

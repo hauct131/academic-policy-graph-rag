@@ -16,53 +16,23 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
-# Ensure scripts folder is in path so we can import 05_retrieve_policy_chunks
 sys.path.insert(0, str(Path(__file__).parent.absolute()))
-import importlib
-try:
-    _retriever = importlib.import_module("retrieve_policy_chunks")
-except ImportError:
-    # Fallback if run from different context/cwd
-    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _retriever = importlib.import_module("retrieve_policy_chunks")
+
+import retrieve_policy_chunks as _retriever
+import select_policy_sources as _selector
+import policy_retrieval_service as _service
+import policy_domain_config as _domain
+import policy_document_registry as _reg
 
 normalize_text = _retriever.normalize_text
 read_jsonl = _retriever.read_jsonl
 retrieve_chunks = _retriever.retrieve_chunks
 load_graph_expansion = _retriever.load_graph_expansion
-
-try:
-    _selector = importlib.import_module("select_policy_sources")
-except ImportError:
-    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _selector = importlib.import_module("select_policy_sources")
-
 select_sources_for_issue = _selector.select_sources_for_issue
 prune_selected_sources_for_issue = _selector.prune_selected_sources_for_issue
-
-try:
-    _service = importlib.import_module("policy_retrieval_service")
-except ImportError:
-    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _service = importlib.import_module("policy_retrieval_service")
-
 PolicyRetrievalService = _service.PolicyRetrievalService
-
-try:
-    _domain = importlib.import_module("policy_domain_config")
-except ImportError:
-    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _domain = importlib.import_module("policy_domain_config")
-
 load_domain_config = _domain.load_domain_config
 infer_issues_from_domain = _domain.infer_issues_from_domain
-
-try:
-    _reg = importlib.import_module("policy_document_registry")
-except ImportError:
-    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _reg = importlib.import_module("policy_document_registry")
-
 load_document_registry = _reg.load_document_registry
 should_warn_missing_current_notice = _reg.should_warn_missing_current_notice
 

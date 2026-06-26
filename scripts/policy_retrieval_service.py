@@ -21,17 +21,9 @@ from typing import Any, Dict, List, Tuple
 # Ensure scripts folder is in python path
 sys.path.insert(0, str(Path(__file__).parent.absolute()))
 
-import importlib
-
-try:
-    _retriever = importlib.import_module("retrieve_policy_chunks")
-    _selector = importlib.import_module("select_policy_sources")
-    _backends = importlib.import_module("policy_retrieval_backends")
-except ImportError:
-    sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _retriever = importlib.import_module("retrieve_policy_chunks")
-    _selector = importlib.import_module("select_policy_sources")
-    _backends = importlib.import_module("policy_retrieval_backends")
+import retrieve_policy_chunks as _retriever
+import select_policy_sources as _selector
+import policy_retrieval_backends as _backends
 
 load_graph_expansion = _retriever.load_graph_expansion
 select_sources_for_issue = _selector.select_sources_for_issue
