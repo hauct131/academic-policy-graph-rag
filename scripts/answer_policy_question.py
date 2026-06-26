@@ -20,11 +20,11 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent.absolute()))
 import importlib
 try:
-    _retriever = importlib.import_module("05_retrieve_policy_chunks")
+    _retriever = importlib.import_module("retrieve_policy_chunks")
 except ImportError:
     # Fallback if run from different context/cwd
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _retriever = importlib.import_module("05_retrieve_policy_chunks")
+    _retriever = importlib.import_module("retrieve_policy_chunks")
 
 normalize_text = _retriever.normalize_text
 read_jsonl = _retriever.read_jsonl
@@ -32,10 +32,10 @@ retrieve_chunks = _retriever.retrieve_chunks
 load_graph_expansion = _retriever.load_graph_expansion
 
 try:
-    _selector = importlib.import_module("07_select_policy_sources")
+    _selector = importlib.import_module("select_policy_sources")
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _selector = importlib.import_module("07_select_policy_sources")
+    _selector = importlib.import_module("select_policy_sources")
 
 select_sources_for_issue = _selector.select_sources_for_issue
 prune_selected_sources_for_issue = _selector.prune_selected_sources_for_issue

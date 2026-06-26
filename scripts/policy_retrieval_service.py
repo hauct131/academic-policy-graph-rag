@@ -24,13 +24,13 @@ sys.path.insert(0, str(Path(__file__).parent.absolute()))
 import importlib
 
 try:
-    _retriever = importlib.import_module("05_retrieve_policy_chunks")
-    _selector = importlib.import_module("07_select_policy_sources")
+    _retriever = importlib.import_module("retrieve_policy_chunks")
+    _selector = importlib.import_module("select_policy_sources")
     _backends = importlib.import_module("policy_retrieval_backends")
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _retriever = importlib.import_module("05_retrieve_policy_chunks")
-    _selector = importlib.import_module("07_select_policy_sources")
+    _retriever = importlib.import_module("retrieve_policy_chunks")
+    _selector = importlib.import_module("select_policy_sources")
     _backends = importlib.import_module("policy_retrieval_backends")
 
 load_graph_expansion = _retriever.load_graph_expansion

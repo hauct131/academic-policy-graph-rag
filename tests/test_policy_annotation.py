@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from importlib import import_module
 
-_mod = import_module("02_annotate_policy_chunks")
+_mod = import_module("annotate_policy_chunks")
 
 normalize_text = _mod.normalize_text
 add_unique = _mod.add_unique

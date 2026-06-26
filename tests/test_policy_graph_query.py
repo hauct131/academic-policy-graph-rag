@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from importlib import import_module
 
-_mod = import_module("04_query_policy_graph")
+_mod = import_module("query_policy_graph")
 
 read_jsonl          = _mod.read_jsonl
 index_nodes_by_id   = _mod.index_nodes_by_id

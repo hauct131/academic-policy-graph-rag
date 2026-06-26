@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from importlib import import_module
 
-_selector = import_module("07_select_policy_sources")
+_selector = import_module("select_policy_sources")
 select_sources_for_issue = _selector.select_sources_for_issue
 prune_selected_sources_for_issue = _selector.prune_selected_sources_for_issue
 

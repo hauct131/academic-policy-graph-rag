@@ -16,16 +16,16 @@ sys.path.insert(0, str(Path(__file__).parent.absolute()))
 
 import importlib
 try:
-    _qa = importlib.import_module("06_answer_policy_question")
-    _retriever = importlib.import_module("05_retrieve_policy_chunks")
+    _qa = importlib.import_module("answer_policy_question")
+    _retriever = importlib.import_module("retrieve_policy_chunks")
     _domain = importlib.import_module("policy_domain_config")
     _reg = importlib.import_module("policy_document_registry")
     _service = importlib.import_module("policy_retrieval_service")
 except ImportError:
     # Alternate path fallback
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _qa = importlib.import_module("06_answer_policy_question")
-    _retriever = importlib.import_module("05_retrieve_policy_chunks")
+    _qa = importlib.import_module("answer_policy_question")
+    _retriever = importlib.import_module("retrieve_policy_chunks")
     _domain = importlib.import_module("policy_domain_config")
     _reg = importlib.import_module("policy_document_registry")
     _service = importlib.import_module("policy_retrieval_service")
@@ -72,9 +72,9 @@ def run_smoke_test(
         for m in missing:
             print(f"  - {m}")
         print("\nPlease run the data ingestion and processing pipeline first:")
-        print("  python scripts/01_build_policy_chunks.py")
-        print("  python scripts/02_annotate_policy_chunks.py")
-        print("  python scripts/03_build_policy_graph.py")
+        print("  python scripts/build_policy_chunks.py")
+        print("  python scripts/annotate_policy_chunks.py")
+        print("  python scripts/build_policy_graph.py")
         return 1
 
     # 2. Load resources

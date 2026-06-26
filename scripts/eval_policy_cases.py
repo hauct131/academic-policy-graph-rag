@@ -19,10 +19,10 @@ sys.path.insert(0, str(Path(__file__).parent.absolute()))
 import importlib
 
 try:
-    _qa = importlib.import_module("06_answer_policy_question")
+    _qa = importlib.import_module("answer_policy_question")
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _qa = importlib.import_module("06_answer_policy_question")
+    _qa = importlib.import_module("answer_policy_question")
 
 infer_case_issues = _qa.infer_case_issues
 answer_question = _qa.answer_question

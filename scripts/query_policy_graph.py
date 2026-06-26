@@ -217,9 +217,9 @@ def _load_graph(
             print(f"[ERROR] File not found: {p}", file=sys.stderr)
         print(
             "[HINT] Run the pipeline first:\n"
-            "  python scripts/01_build_policy_chunks.py\n"
-            "  python scripts/02_annotate_policy_chunks.py\n"
-            "  python scripts/03_build_policy_graph.py",
+            "  python scripts/build_policy_chunks.py\n"
+            "  python scripts/annotate_policy_chunks.py\n"
+            "  python scripts/build_policy_graph.py",
             file=sys.stderr,
         )
         sys.exit(1)

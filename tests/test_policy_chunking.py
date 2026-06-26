@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 from importlib import import_module
 
 # We import via importlib because the module name starts with a digit
-_mod = import_module("01_build_policy_chunks")
+_mod = import_module("build_policy_chunks")
 
 parse_frontmatter = _mod.parse_frontmatter
 split_document_into_chunks = _mod.split_document_into_chunks

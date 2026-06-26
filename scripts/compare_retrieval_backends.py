@@ -38,15 +38,15 @@ sys.path.insert(0, str(Path(__file__).parent.absolute()))
 import importlib
 
 try:
-    _retriever = importlib.import_module("05_retrieve_policy_chunks")
-    _qa = importlib.import_module("06_answer_policy_question")
+    _retriever = importlib.import_module("retrieve_policy_chunks")
+    _qa = importlib.import_module("answer_policy_question")
     _domain = importlib.import_module("policy_domain_config")
     _service = importlib.import_module("policy_retrieval_service")
     _backends_mod = importlib.import_module("policy_retrieval_backends")
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _retriever = importlib.import_module("05_retrieve_policy_chunks")
-    _qa = importlib.import_module("06_answer_policy_question")
+    _retriever = importlib.import_module("retrieve_policy_chunks")
+    _qa = importlib.import_module("answer_policy_question")
     _domain = importlib.import_module("policy_domain_config")
     _service = importlib.import_module("policy_retrieval_service")
     _backends_mod = importlib.import_module("policy_retrieval_backends")
@@ -697,9 +697,9 @@ def main(argv: list[str] | None = None) -> int:
         if not chunks_path.exists():
             print(
                 "\nPlease run the ingestion pipeline first:\n"
-                "  python scripts/01_build_policy_chunks.py\n"
-                "  python scripts/02_annotate_policy_chunks.py\n"
-                "  python scripts/03_build_policy_graph.py",
+                "  python scripts/build_policy_chunks.py\n"
+                "  python scripts/annotate_policy_chunks.py\n"
+                "  python scripts/build_policy_graph.py",
                 file=sys.stderr,
             )
         return 1

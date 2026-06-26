@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from importlib import import_module
 
-_eval = import_module("08_eval_policy_cases")
+_eval = import_module("eval_policy_cases")
 load_cases = _eval.load_cases
 evaluate_case = _eval.evaluate_case
 

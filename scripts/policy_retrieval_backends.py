@@ -26,10 +26,10 @@ sys.path.insert(0, str(Path(__file__).parent.absolute()))
 import importlib
 
 try:
-    _retriever = importlib.import_module("05_retrieve_policy_chunks")
+    _retriever = importlib.import_module("retrieve_policy_chunks")
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _retriever = importlib.import_module("05_retrieve_policy_chunks")
+    _retriever = importlib.import_module("retrieve_policy_chunks")
 
 _retrieve_chunks = _retriever.retrieve_chunks
 _filter_chunks = _retriever.filter_chunks

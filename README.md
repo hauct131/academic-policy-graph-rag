@@ -52,9 +52,9 @@ academic-policy-graph-rag/
 
 3. **Build generated data (Ingestion Pipeline):**
    ```bash
-   python scripts/01_build_policy_chunks.py
-   python scripts/02_annotate_policy_chunks.py
-   python scripts/03_build_policy_graph.py
+   python scripts/build_policy_chunks.py
+   python scripts/annotate_policy_chunks.py
+   python scripts/build_policy_graph.py
    ```
 
 ## Running the Assistant
@@ -62,7 +62,7 @@ academic-policy-graph-rag/
 ### 1. Run CLI QA Query
 Query the pipeline directly via terminal command:
 ```bash
-python scripts/06_answer_policy_question.py --question "Điều kiện xét tốt nghiệp là gì?"
+python scripts/answer_policy_question.py --question "Điều kiện xét tốt nghiệp là gì?"
 ```
 
 ### 2. Run API Server
@@ -84,13 +84,13 @@ curl -X POST http://localhost:8000/policy/ask \
 ### 3. Run Smoke Demo
 Run a quick deterministic query validation script (without starting the API server):
 ```bash
-python scripts/09_smoke_policy_qa.py
+python scripts/smoke_policy_qa.py
 ```
 
 ### 4. Run Evaluations
 Run the evaluation test suite against the target QA scenarios:
 ```bash
-python scripts/08_eval_policy_cases.py --verbose
+python scripts/eval_policy_cases.py --verbose
 ```
 
 The eval dataset contains at least 30 cases covering: graduation (điều kiện xét tốt nghiệp, cấp bằng, hạng tốt nghiệp, GPA, tín chỉ), course exemption (điều kiện miễn môn, hồ sơ, 50% giới hạn, đề cương, thủ tục, thời hạn), foreign language (IELTS, TOEIC, Cambridge, thời hạn chứng chỉ, kỳ thi đầu ra, ngoại ngữ hai), course registration (đăng ký, điều chỉnh), retake and grade improvement, academic standing (cảnh báo, buộc thôi học), and temporal/deadline notice warnings.
@@ -118,8 +118,8 @@ pytest
 
 **Example backend comparison (smoke script):**
 ```bash
-python scripts/09_smoke_policy_qa.py --retrieval-backend lexical_v0
-python scripts/09_smoke_policy_qa.py --retrieval-backend bm25_like_v0
+python scripts/smoke_policy_qa.py --retrieval-backend lexical_v0
+python scripts/smoke_policy_qa.py --retrieval-backend bm25_like_v0
 ```
 
 > **Note:** Production default remains `lexical_v0` until evaluation proves another backend is better across all 9 eval cases.
@@ -129,12 +129,12 @@ python scripts/09_smoke_policy_qa.py --retrieval-backend bm25_like_v0
 Run the deterministic retrieval comparison script to measure `first_chunk`, `chunk_any`, and `negative_chunk` retrieval quality across backends on the existing evaluation cases:
 
 ```bash
-python scripts/10_compare_retrieval_backends.py
-python scripts/10_compare_retrieval_backends.py --backends lexical_v0,bm25_like_v0 --verbose
+python scripts/compare_retrieval_backends.py
+python scripts/compare_retrieval_backends.py --backends lexical_v0,bm25_like_v0 --verbose
 ```
 
 - `bm25_like_v0` is experimental. Do not change the production default until expanded eval cases show consistent improvement over `lexical_v0`.
-- This script evaluates **retrieval only** (which chunks were selected). For full end-to-end evaluation including answer text, use `python scripts/08_eval_policy_cases.py --verbose`.
+- This script evaluates **retrieval only** (which chunks were selected). For full end-to-end evaluation including answer text, use `python scripts/eval_policy_cases.py --verbose`.
 
 
 ## Documentation Links

@@ -20,15 +20,15 @@ if scripts_path not in sys.path:
 
 import importlib
 try:
-    _qa = importlib.import_module("06_answer_policy_question")
-    _retriever = importlib.import_module("05_retrieve_policy_chunks")
+    _qa = importlib.import_module("answer_policy_question")
+    _retriever = importlib.import_module("retrieve_policy_chunks")
     _domain = importlib.import_module("policy_domain_config")
     _reg = importlib.import_module("policy_document_registry")
     _service = importlib.import_module("policy_retrieval_service")
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-    _qa = importlib.import_module("06_answer_policy_question")
-    _retriever = importlib.import_module("05_retrieve_policy_chunks")
+    _qa = importlib.import_module("answer_policy_question")
+    _retriever = importlib.import_module("retrieve_policy_chunks")
     _domain = importlib.import_module("policy_domain_config")
     _reg = importlib.import_module("policy_document_registry")
     _service = importlib.import_module("policy_retrieval_service")
@@ -110,8 +110,8 @@ class PolicyQAService:
                 msg += f"- {res}\n"
             if "missing annotated chunks" in self.missing_resources:
                 msg += "\nPlease run the ingestion pipeline:\n"
-                msg += "  python scripts/01_build_policy_chunks.py\n"
-                msg += "  python scripts/02_annotate_policy_chunks.py\n"
+                msg += "  python scripts/build_policy_chunks.py\n"
+                msg += "  python scripts/annotate_policy_chunks.py\n"
             raise RuntimeError(msg)
 
         # Try to load graph expansion

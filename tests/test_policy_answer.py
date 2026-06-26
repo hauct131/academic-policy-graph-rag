@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from importlib import import_module
 
-_mod = import_module("06_answer_policy_question")
+_mod = import_module("answer_policy_question")
 
 infer_case_issues   = _mod.infer_case_issues
 answer_question     = _mod.answer_question

@@ -98,7 +98,7 @@ SYNTHETIC_DOMAIN_CONFIG = {
 
 
 def _get_compare_module():
-    return import_module("10_compare_retrieval_backends")
+    return import_module("compare_retrieval_backends")
 
 
 # ---------------------------------------------------------------------------
