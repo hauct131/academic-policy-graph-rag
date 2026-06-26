@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """
-scripts/03_build_policy_graph.py
+scripts/build_policy_graph.py
 
-Build the first metadata graph for the Academic Policy Graph RAG project.
+Build the metadata graph for the Academic Policy Graph RAG project.
 
 Reads policy_chunks.annotated.jsonl and emits:
   data/graph/policy_graph_nodes.jsonl
   data/graph/policy_graph_edges.jsonl
 
 Usage:
-    python scripts/03_build_policy_graph.py [--input-file ...] [--nodes-file ...] [--edges-file ...]
+    python scripts/build_policy_graph.py [--input-file ...] [--nodes-file ...] [--edges-file ...]
 """
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -34,6 +35,144 @@ _TAG_FIELD_META: dict[str, tuple[str, str, str]] = {
     "requirement_tags":     ("requirement_tag",    "RequirementTag",   "CHUNK_HAS_REQUIREMENT_TAG"),
     "time_tags":            ("time_tag",           "TimeTag",          "CHUNK_HAS_TIME_TAG"),
 }
+
+# ---------------------------------------------------------------------------
+# Cross-reference extraction: prioritized masking patterns
+# ---------------------------------------------------------------------------
+
+# Patterns ordered longest-to-shortest so deep hierarchies are captured
+# before shorter sub-patterns can steal sub-strings.  Each pattern captures
+# the Dieu number (or the literal "nay") in its first capture group, and
+# optionally captures Khoan and Diem in subsequent groups.
+#
+# All patterns are compiled with re.IGNORECASE and re.DOTALL so newlines
+# inside a quoted article span (e.g. "Khoản 1 Điều\n7") are absorbed.
+REFERENCE_PATTERNS: list[re.Pattern] = [
+    # Pattern 1: Deep hierarchy  — Điểm + Khoản + Điều
+    re.compile(
+        r"đi[eể]m\s+([a-z\u0111])\s*,?\s*"
+        r"kho[aả]n\s+(\d+[a-z\u0111]?)\s*,?\s*"
+        r"đi[eề]u\s+(\d+|n[aà]y)",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    # Pattern 2: Mid hierarchy   — Khoản + Điều
+    re.compile(
+        r"kho[aả]n\s+(\d+[a-z\u0111]?)\s*,?\s*"
+        r"đi[eề]u\s+(\d+|n[aà]y)",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    # Pattern 3: Base            — Điều N  (standalone, not inside a larger match)
+    re.compile(
+        r"đi[eề]u\s+(\d+)",
+        re.IGNORECASE | re.DOTALL,
+    ),
+]
+
+_MASK_TOKEN = "\x00MASKEDREF\x00"   # ASCII NUL-based sentinel; never appears in text
+
+
+def _resolve_dieu_number(raw: str, section_number: str | None) -> str | None:
+    """
+    Convert the raw Dieu token (e.g. '14' or 'này'/'nay') to a numeric string.
+    Returns None if the self-reference anchor cannot be resolved.
+    """
+    norm = raw.strip().lower()
+    if norm in ("n\u00e0y", "nay", "n\u00e0y"):   # 'này'
+        # Resolve to the current chunk's own Dieu number
+        sn = str(section_number or "").strip()
+        return sn if sn and sn.isdigit() else None
+    if raw.strip().isdigit():
+        return raw.strip()
+    return None
+
+
+def extract_cross_references(
+    chunk: dict[str, Any],
+) -> list[tuple[str | None, str | None, str]]:
+    """
+    Extract structured cross-references from the chunk's text using a
+    prioritized masking loop.
+
+    Returns a list of (khoan, diem, dieu_number) tuples where dieu_number
+    is always a numeric string, khoan and diem may be None.
+    """
+    text  = chunk.get("text", "")
+    sn    = str(chunk.get("section_number", "")).strip()
+    refs: list[tuple[str | None, str | None, str]] = []
+
+    # Blank out Markdown heading lines (# ... ) and table lines (| ... |) so
+    # that section titles like "## Điều 6. ..." are not matched as cross-
+    # references.  We replace each such line with spaces of the same length to
+    # preserve character offsets for the masking loop.
+    def _blank_headings(s: str) -> str:
+        lines = s.split("\n")
+        cleaned = []
+        for line in lines:
+            stripped = line.lstrip()
+            if stripped.startswith("#") or stripped.startswith("|"):
+                cleaned.append(" " * len(line))
+            else:
+                cleaned.append(line)
+        return "\n".join(cleaned)
+
+    # Work on a mutable copy for mask replacement (with headings blanked)
+    working = _blank_headings(text)
+
+    for pat in REFERENCE_PATTERNS:
+        new_working = working
+        for m in pat.finditer(working):
+            groups = [g for g in m.groups() if g is not None]
+            if len(groups) == 3:
+                # Deep: diem, khoan, dieu
+                diem_raw, khoan_raw, dieu_raw = groups
+                dieu = _resolve_dieu_number(dieu_raw, sn)
+                if dieu:
+                    refs.append((khoan_raw.strip(), diem_raw.strip(), dieu))
+            elif len(groups) == 2:
+                # Mid: khoan, dieu
+                khoan_raw, dieu_raw = groups
+                dieu = _resolve_dieu_number(dieu_raw, sn)
+                if dieu:
+                    refs.append((khoan_raw.strip(), None, dieu))
+            elif len(groups) == 1:
+                # Base: dieu only
+                dieu_raw = groups[0]
+                dieu = _resolve_dieu_number(dieu_raw, sn)
+                if dieu:
+                    refs.append((None, None, dieu))
+            # Mask the consumed span so shorter patterns cannot steal it
+            new_working = new_working[:m.start()] + _MASK_TOKEN + new_working[m.end():]
+        working = new_working
+
+    return refs
+
+
+def build_reference_edge(
+    chunk_nid: str,
+    doc_id: str,
+    khoan: str | None,
+    diem: str | None,
+    dieu_num: str,
+) -> dict[str, Any]:
+    """
+    Build a REFERENCES edge from a chunk node to the target article chunk node.
+
+    Target node ID follows the pattern:
+      chunk:{doc_id}__dieu_{N}[__khoan_{K}]
+    Diem is stored in edge properties but does not alter the target node ID
+    because Diem-level chunks are not materialised as separate graph nodes.
+    """
+    target_chunk_id = f"{doc_id}__dieu_{dieu_num}"
+    if khoan:
+        target_chunk_id += f"__khoan_{khoan}"
+    target_nid = f"chunk:{target_chunk_id}"
+    props: dict[str, Any] = {"referenced_dieu": dieu_num}
+    if khoan:
+        props["referenced_khoan"] = khoan
+    if diem:
+        props["referenced_diem"] = diem
+    return make_edge(chunk_nid, target_nid, "REFERENCES", props)
+
 
 
 # ---------------------------------------------------------------------------
@@ -162,9 +301,15 @@ def build_graph(
                 add_node(tag_node)
                 add_edge(make_edge(chunk_nid, tag_node["node_id"], edge_type))
 
+        # Cross-reference edges: parse Điều/Khoản/Điểm mentions in text
+        for khoan, diem, dieu_num in extract_cross_references(chunk):
+            ref_edge = build_reference_edge(chunk_nid, doc_id, khoan, diem, dieu_num)
+            add_edge(ref_edge)
+
     sorted_nodes = sorted(nodes.values(), key=lambda n: n["node_id"])
     sorted_edges = sorted(edges.values(), key=lambda e: e["edge_id"])
     return sorted_nodes, sorted_edges
+
 
 
 # ---------------------------------------------------------------------------
