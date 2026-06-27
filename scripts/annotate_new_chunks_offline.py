@@ -140,6 +140,7 @@ async def annotate_chunk_core(
 
                 annotated["annotated_at"] = datetime.now().isoformat()
                 annotated["pipeline_cycle_attempts"] = current_cycle
+                annotated["model_used"] = model_name
 
                 for field in ["policy_area", "student_status_tags", "evidence_groups", "requirement_tags", "time_tags"]:
                     if field not in annotated: annotated[field] = []
@@ -147,7 +148,13 @@ async def annotate_chunk_core(
                 global_state["active_idx"] = current_idx
                 return True, annotated
 
-            except Exception:
+            except Exception as e:
+                print(
+                    f"   [WARN] Chunk {chunk.get('chunk_id')} | model={model_name} | "
+                    f"attempt {attempt + 1}/{retries_per_chunk} thất bại: "
+                    f"{type(e).__name__}: {e}",
+                    file=sys.stderr
+                )
                 global_state["active_idx"] = (current_idx + 1) % len(models_pool)
                 await asyncio.sleep(1.5 + attempt)
 
@@ -235,6 +242,7 @@ async def async_main(args: argparse.Namespace) -> None:
             annotated["action_tags"], annotated["risk_tags"], annotated["procedure_tags"] = [], [], []
             annotated["annotated_at"] = datetime.now().isoformat()
             annotated["pipeline_cycle_attempts"] = args.max_cycles
+            annotated["model_used"] = None
             for field in ["policy_area", "student_status_tags", "evidence_groups", "requirement_tags", "time_tags"]:
                 if field not in annotated: annotated[field] = []
             final_results_map[chunk["chunk_id"]] = annotated

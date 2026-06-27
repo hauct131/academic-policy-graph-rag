@@ -107,9 +107,43 @@ async def process_embeddings_pipeline(args: argparse.Namespace) -> None:
             tasks = [worker(chunk, i, client) for i, chunk in enumerate(chunks)]
             await asyncio.gather(*tasks)
 
+    # ── Validation: không cho pipeline báo "xong" nếu dữ liệu không sạch ────
+    failed_chunks = [c["chunk_id"] for c in chunks if not c.get("embedding")]
+    embedding_lengths = {len(c["embedding"]) for c in chunks if c.get("embedding")}
+
+    if len(embedding_lengths) > 1:
+        print(
+            f"\n[LỖI] Phát hiện embedding có nhiều chiều dài khác nhau: "
+            f"{sorted(embedding_lengths)}. Dữ liệu không đồng nhất, dừng pipeline.",
+            file=sys.stderr
+        )
+        sys.exit(1)
+
+    if failed_chunks:
+        print(
+            f"\n[CẢNH BÁO] {len(failed_chunks)}/{len(chunks)} chunk có embedding "
+            f"rỗng (thất bại hoàn toàn sau retry):",
+            file=sys.stderr
+        )
+        for cid in failed_chunks:
+            print(f"   - {cid}", file=sys.stderr)
+        failures_path = Path(args.output_file).with_name(
+            Path(args.output_file).stem + ".embedding_failures.json"
+        )
+        failures_path.write_text(
+            json.dumps(failed_chunks, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        print(f"   Danh sách chunk lỗi đã lưu tại: {failures_path}", file=sys.stderr)
+
     # Xuất file kết quả sản phẩm tối cao của Phase 3
     write_jsonl(Path(args.output_file), chunks)
-    print(f"\n[XONG TOÀN DIỆN PHASE 3] Toàn bộ dữ liệu sạch đã được số hóa vector!")
+    if failed_chunks:
+        print(
+            f"\n[HOÀN TẤT CÓ CẢNH BÁO] {len(chunks) - len(failed_chunks)}/{len(chunks)} "
+            f"chunk có vector hợp lệ. Xem {failures_path.name} để retry các chunk lỗi."
+        )
+    else:
+        print(f"\n[XONG TOÀN DIỆN PHASE 3] Toàn bộ dữ liệu sạch đã được số hóa vector!")
     print(f"File đích chuẩn bị nạp Graph: {args.output_file}")
 
 
