@@ -58,6 +58,18 @@ async def get_nvidia_nemotron_embedding(client: httpx.AsyncClient, text: str, ap
         raise e
 
 
+def check_embedding_consistency(chunks: list[dict]) -> tuple[list[str], set[int]]:
+    """
+    Kiểm tra tính đầy đủ và đồng nhất của các vector embedding.
+    Trả về (danh sách chunk_id bị thiếu vector, tập các độ dài vector
+    khác nhau tìm được). Hàm thuần — không print, không ghi file,
+    không sys.exit — để dễ unit test độc lập.
+    """
+    failed_chunks = [c["chunk_id"] for c in chunks if not c.get("embedding")]
+    embedding_lengths = {len(c["embedding"]) for c in chunks if c.get("embedding")}
+    return failed_chunks, embedding_lengths
+
+
 async def process_embeddings_pipeline(args: argparse.Namespace) -> None:
     chunks = read_jsonl(Path(args.input_file))
     if not chunks:
@@ -108,8 +120,7 @@ async def process_embeddings_pipeline(args: argparse.Namespace) -> None:
             await asyncio.gather(*tasks)
 
     # ── Validation: không cho pipeline báo "xong" nếu dữ liệu không sạch ────
-    failed_chunks = [c["chunk_id"] for c in chunks if not c.get("embedding")]
-    embedding_lengths = {len(c["embedding"]) for c in chunks if c.get("embedding")}
+    failed_chunks, embedding_lengths = check_embedding_consistency(chunks)
 
     if len(embedding_lengths) > 1:
         print(
