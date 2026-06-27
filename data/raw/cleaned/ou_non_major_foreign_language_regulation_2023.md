@@ -1,6 +1,10 @@
 ---
 doc_id: ou_non_major_foreign_language_regulation_2023
 title: Quy định đào tạo ngoại ngữ không chuyên thuộc các chương trình đào tạo trình độ đại học hình thức đào tạo chính quy
+document_type: regulation
+status: active
+effective_from: 2023-05-23
+policy_area: ["foreign_language_requirement", "second_foreign_language_requirement"]
 decision_no: 1386/QĐ-ĐHM
 issued_date: 2023-05-23
 institution: Trường Đại học Mở Thành phố Hồ Chí Minh

@@ -170,5 +170,47 @@
       "answer_template": "Dựa trên các đoạn tìm được, vui lòng đối chiếu kỹ điều kiện thực tế của bạn với các văn bản quy định chi tiết bên dưới. Chưa thể đưa ra kết luận chắc chắn cho trường hợp này.",
       "missing_information_questions": []
     }
+  ],
+  "action_tags": [
+    "register_course",
+    "study_ahead",
+    "retake_course",
+    "improve_grade",
+    "academic_warning",
+    "temporary_suspension",
+    "dismissal",
+    "temporary_leave",
+    "withdrawal",
+    "reserve_study_results",
+    "graduation_audit",
+    "degree_conferral",
+    "request_course_exemption",
+    "request_course_reduction",
+    "credit_transfer",
+    "english_placement_test",
+    "english_exit_exam",
+    "request_english_exemption",
+    "request_second_language_exemption",
+    "take_final_exam",
+    "appeal_grade",
+    "calculate_gpa"
+  ],
+  "risk_tags": [
+    "missed_registration_deadline",
+    "forced_temporary_leave",
+    "forced_dropout",
+    "unauthorized_absence",
+    "tuition_debt",
+    "zero_score",
+    "exam_absence"
+  ],
+  "procedure_tags": [
+    "advisor_approval_required",
+    "application_required",
+    "decision_required",
+    "transcript_required",
+    "syllabus_required",
+    "graduation_application_required",
+    "appeal_application_required"
   ]
 }

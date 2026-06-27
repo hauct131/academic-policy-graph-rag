@@ -18,7 +18,37 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
-from typing import Any
+from pydantic import BaseModel, field_validator, ValidationError
+from typing import Any, Optional, List
+import datetime
+
+class DocumentFrontmatter(BaseModel):
+    doc_id: str
+    title: str
+    document_type: str
+    status: str
+    effective_from: datetime.date  # Automatically coerces standard YYYY-MM-DD strings to date objects
+    effective_to: Optional[datetime.date] = None
+    decision_no: Optional[str] = None
+    issued_date: Optional[str] = None
+    policy_area: List[str] = []
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        allowed = {"active", "superseded", "draft"}
+        if v not in allowed:
+            raise ValueError(f"status must be one of {allowed}, got '{v}'")
+        return v
+
+    @field_validator("document_type")
+    @classmethod
+    def validate_doc_type(cls, v: str) -> str:
+        allowed = {"regulation", "notice", "circular", "guideline", "semester_notice", "annual_notice"}
+        if v not in allowed:
+            raise ValueError(f"document_type must be one of {allowed}, got '{v}'")
+        return v
+
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +90,26 @@ def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
             if (val.startswith('"') and val.endswith('"')) or \
                (val.startswith("'") and val.endswith("'")):
                 val = val[1:-1]
-            meta[current_key] = val
+            
+            # Parse list formats
+            if val.startswith("[") and val.endswith("]"):
+                import ast
+                try:
+                    meta[current_key] = ast.literal_eval(val)
+                except Exception:
+                    items = val[1:-1].split(",")
+                    meta[current_key] = [i.strip().strip("'\"") for i in items if i.strip()]
+            elif len(current_val_parts) > 1 and all(p.strip().startswith("-") for p in current_val_parts[1:]):
+                items = []
+                for p in current_val_parts:
+                    p_clean = p.strip()
+                    if p_clean.startswith("-"):
+                        p_clean = p_clean[1:].strip().strip("'\"")
+                    if p_clean:
+                        items.append(p_clean)
+                meta[current_key] = items
+            else:
+                meta[current_key] = val
 
     for line in fm_lines:
         # Match "key: value" or "key:" patterns
@@ -354,6 +403,11 @@ def split_document_into_chunks(
             "char_count": char_count,
             "word_count": _count_words(text),
         }
+        for k, v in meta.items():
+            if k not in chunk:
+                if isinstance(v, datetime.date):
+                    v = v.isoformat()
+                chunk[k] = v
         chunks.append(chunk)
 
     return chunks
@@ -385,7 +439,20 @@ def build_chunks(
         raw_text = md_file.read_text(encoding="utf-8")
 
         meta, body = parse_frontmatter(raw_text)
-        chunks = split_document_into_chunks(body, meta, rel_path, min_chars)
+
+        try:
+            validated_meta = DocumentFrontmatter(**meta)
+        except ValidationError as e:
+            print(f"[ERROR] Metadata validation failed for file: {md_file}", file=sys.stderr)
+            for err in e.errors():
+                loc_str = " -> ".join(str(loc) for loc in err["loc"])
+                print(f"  Field '{loc_str}': {err['msg']}", file=sys.stderr)
+            sys.exit(1)
+
+        serialized_meta = validated_meta.model_dump(mode="json")
+        final_meta = {**meta, **serialized_meta}
+
+        chunks = split_document_into_chunks(body, final_meta, rel_path, min_chars)
 
         doc_id = meta.get("doc_id", md_file.stem)
         per_doc[doc_id] = len(chunks)

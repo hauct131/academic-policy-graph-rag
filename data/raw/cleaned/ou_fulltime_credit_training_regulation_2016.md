@@ -1,6 +1,10 @@
 ---
 doc_id: ou_fulltime_credit_training_regulation_2016
 title: Quy chế đào tạo đại học hệ chính quy theo hệ thống tín chỉ
+document_type: regulation
+status: active
+effective_from: 2016-12-20
+policy_area: ["course_registration", "retake_and_grade_improvement", "academic_standing", "assessment_and_grading", "graduation", "leave_and_withdrawal"]
 decision_no: 2026/QĐ-ĐHM
 issued_date: 2016-12-20
 institution: Trường Đại học Mở Thành phố Hồ Chí Minh

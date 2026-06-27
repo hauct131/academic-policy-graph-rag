@@ -1,6 +1,10 @@
 ---
 doc_id: ou_course_exemption_regulation_2023
 title: Quy định miễn, giảm môn học thuộc các chương trình đào tạo trình độ đại học hình thức đào tạo chính quy
+document_type: regulation
+status: active
+effective_from: 2023-06-16
+policy_area: ["course_exemption"]
 decision_no: 1646/QĐ-ĐHM
 issued_date: 2023-06-16
 institution: Trường Đại học Mở Thành phố Hồ Chí Minh
