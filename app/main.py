@@ -25,8 +25,41 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+import time
+from collections import defaultdict
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+RATE_LIMIT_PER_MINUTE = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "30"))
+_rate_limit_window_seconds = 60
+_request_log: dict[str, list[float]] = defaultdict(list)
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    if request.url.path == "/policy/ask":
+        client_ip = request.client.host if request.client else "unknown"
+        now = time.monotonic()
+        timestamps = _request_log[client_ip]
+        # Xoá các timestamp cũ hơn window
+        cutoff = now - _rate_limit_window_seconds
+        timestamps[:] = [t for t in timestamps if t > cutoff]
+        if len(timestamps) >= RATE_LIMIT_PER_MINUTE:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many requests. Please try again later."},
+                headers={"Retry-After": str(_rate_limit_window_seconds)}
+            )
+        timestamps.append(now)
+    return await call_next(request)
+
+
 class AskRequest(BaseModel):
-    question: str = Field(..., description="Student policy question")
+    question: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="Student policy question (max 2000 characters)"
+    )
     top_k: int = Field(5, ge=1, le=10, description="Top K chunks to retrieve")
     show_evidence_text: bool = Field(False, description="Whether to append raw evidence text")
 
