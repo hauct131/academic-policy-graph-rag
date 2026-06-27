@@ -19,6 +19,7 @@ from typing import Any, Tuple
 import httpx
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from scripts.annotate_policy_chunks import annotate_chunk
 
 
 def load_taxonomy(domain_path: Path) -> tuple[list[str], list[str], list[str]]:
@@ -51,6 +52,19 @@ def write_jsonl(path: Path, chunks: list[dict[str, Any]]) -> None:
     with path.open("w", encoding="utf-8") as fh:
         for chunk in chunks:
             fh.write(json.dumps(chunk, ensure_ascii=False) + "\n")
+
+
+def validate_tags_against_domain(tags: list[str], domain_config: dict) -> list[str]:
+    """
+    Validate and filter a list of tags against the allowed tags in domain_config.
+    Allowed tags are the union of action_tags, risk_tags, and procedure_tags.
+    """
+    allowed = set()
+    if isinstance(domain_config, dict):
+        allowed.update(domain_config.get("action_tags", []))
+        allowed.update(domain_config.get("risk_tags", []))
+        allowed.update(domain_config.get("procedure_tags", []))
+    return [t for t in tags if t in allowed]
 
 
 async def annotate_chunk_core(
@@ -129,18 +143,26 @@ async def annotate_chunk_core(
                 risk_res = result.get("risk_tags") if isinstance(result.get("risk_tags"), list) else []
                 proc_res = result.get("procedure_tags") if isinstance(result.get("procedure_tags"), list) else []
 
-                action_tags = [t for t in action_res if t in action_allowed]
-                risk_tags = [t for t in risk_res if t in risk_allowed]
-                procedure_tags = [t for t in proc_res if t in proc_allowed]
+                # Validate tags bằng allow-list
+                all_llm_tags = action_res + risk_res + proc_res
+                domain_config = {
+                    "action_tags": action_allowed,
+                    "risk_tags": risk_allowed,
+                    "procedure_tags": proc_allowed
+                }
+                validated_tags = validate_tags_against_domain(all_llm_tags, domain_config)
+                if len(validated_tags) < len(all_llm_tags):
+                    raise ValueError("Phát hiện tag lạ không nằm trong allow-list")
 
                 annotated = dict(chunk)
-                annotated["action_tags"] = action_tags
-                annotated["risk_tags"] = risk_tags
-                annotated["procedure_tags"] = procedure_tags
+                annotated["action_tags"] = action_res
+                annotated["risk_tags"] = risk_res
+                annotated["procedure_tags"] = proc_res
 
                 annotated["annotated_at"] = datetime.now().isoformat()
                 annotated["pipeline_cycle_attempts"] = current_cycle
                 annotated["model_used"] = model_name
+                annotated["extracted_by"] = "llm_first_pass"
 
                 for field in ["policy_area", "student_status_tags", "evidence_groups", "requirement_tags", "time_tags"]:
                     if field not in annotated: annotated[field] = []
@@ -151,14 +173,34 @@ async def annotate_chunk_core(
             except Exception as e:
                 print(
                     f"   [WARN] Chunk {chunk.get('chunk_id')} | model={model_name} | "
-                    f"attempt {attempt + 1}/{retries_per_chunk} thất bại: "
-                    f"{type(e).__name__}: {e}",
+                    f"thất bại ({type(e).__name__}: {e}). Fallback ngay lập tức sang rule-based.",
                     file=sys.stderr
                 )
                 global_state["active_idx"] = (current_idx + 1) % len(models_pool)
-                await asyncio.sleep(1.5 + attempt)
+                
+                # Fallback sang hàm rule-based
+                annotated = annotate_chunk(chunk)
+                annotated["annotated_at"] = datetime.now().isoformat()
+                annotated["pipeline_cycle_attempts"] = current_cycle
+                annotated["model_used"] = None
+                annotated["extracted_by"] = "rule_based_fallback"
 
-        return False, chunk
+                for field in ["policy_area", "student_status_tags", "evidence_groups", "requirement_tags", "time_tags"]:
+                    if field not in annotated: annotated[field] = []
+
+                return True, annotated
+
+        # Trường hợp tất cả các lần thử đều thất bại (ví dụ đều 429)
+        annotated = annotate_chunk(chunk)
+        annotated["annotated_at"] = datetime.now().isoformat()
+        annotated["pipeline_cycle_attempts"] = current_cycle
+        annotated["model_used"] = None
+        annotated["extracted_by"] = "rule_based_fallback"
+
+        for field in ["policy_area", "student_status_tags", "evidence_groups", "requirement_tags", "time_tags"]:
+            if field not in annotated: annotated[field] = []
+
+        return True, annotated
 
 
 async def async_main(args: argparse.Namespace) -> None:
@@ -236,13 +278,13 @@ async def async_main(args: argparse.Namespace) -> None:
             cycle += 1
 
     if working_queue:
-        print(f"\n[CRITICAL] Còn {len(working_queue)} chunk thất bại hoàn toàn sau {args.max_cycles} vòng quét. Đóng gói mảng rỗng an toàn.")
+        print(f"\n[CRITICAL] Còn {len(working_queue)} chunk thất bại hoàn toàn sau {args.max_cycles} vòng quét. Fallback sang rule-based.")
         for chunk in working_queue:
-            annotated = dict(chunk)
-            annotated["action_tags"], annotated["risk_tags"], annotated["procedure_tags"] = [], [], []
+            annotated = annotate_chunk(chunk)
             annotated["annotated_at"] = datetime.now().isoformat()
             annotated["pipeline_cycle_attempts"] = args.max_cycles
             annotated["model_used"] = None
+            annotated["extracted_by"] = "rule_based_fallback"
             for field in ["policy_area", "student_status_tags", "evidence_groups", "requirement_tags", "time_tags"]:
                 if field not in annotated: annotated[field] = []
             final_results_map[chunk["chunk_id"]] = annotated
