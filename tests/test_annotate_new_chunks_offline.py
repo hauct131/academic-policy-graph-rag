@@ -1,11 +1,11 @@
 """
 tests/test_annotate_new_chunks_offline.py
 
-Unit tests for scripts/annotate_new_chunks_offline.py under Hybrid Architecture:
-- validate_tags_against_domain() utility testing
-- Fallback to rule-based annotations on tag validation errors (tag lạ)
+Unit tests for scripts/annotate_new_chunks_offline.py (v2.6):
+- validate_and_filter_tags() utility testing
+- Tag filtering behavior (bad tags filtered, good tags kept)
 - Model rotation on 429 followed by LLM success
-- Fallback to rule-based annotations on client exception (network error, timeout)
+- Model error handling (network error/timeout)
 - Proper metadata tracking for model_used and extracted_by
 """
 
@@ -21,26 +21,40 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scripts.annotate_new_chunks_offline import (
     annotate_chunk_core,
-    validate_tags_against_domain,
+    validate_and_filter_tags,
+    PerModelRateLimiter,
+    AuthError,
 )
 
 
-def test_validate_tags_against_domain():
-    domain_config = {
-        "action_tags": ["tag1", "tag2"],
-        "risk_tags": ["tag3"],
-        "procedure_tags": ["tag4"]
-    }
+def test_validate_and_filter_tags():
+    action_allowed = ["tag1", "tag2"]
+    risk_allowed = ["tag3"]
+    proc_allowed = ["tag4"]
+
     # All valid tags preserved
-    assert validate_tags_against_domain(["tag1", "tag3"], domain_config) == ["tag1", "tag3"]
+    fa, fr, fp = validate_and_filter_tags(
+        ["tag1"], ["tag3"], ["tag4"],
+        action_allowed, risk_allowed, proc_allowed,
+        "chunk_1", "model_1"
+    )
+    assert fa == ["tag1"]
+    assert fr == ["tag3"]
+    assert fp == ["tag4"]
+
     # Invalid tags filtered out
-    assert validate_tags_against_domain(["tag1", "tag_invalid", "tag4"], domain_config) == ["tag1", "tag4"]
-    # Empty tags list
-    assert validate_tags_against_domain([], domain_config) == []
+    fa, fr, fp = validate_and_filter_tags(
+        ["tag1", "tag_invalid"], ["tag3", "tag_invalid"], ["tag4", "tag_invalid"],
+        action_allowed, risk_allowed, proc_allowed,
+        "chunk_1", "model_1"
+    )
+    assert fa == ["tag1"]
+    assert fr == ["tag3"]
+    assert fp == ["tag4"]
 
 
 @pytest.mark.anyio
-async def test_fallback_on_tag_la():
+async def test_tag_filtering_behavior():
     # Setup mock client
     mock_client = AsyncMock()
     mock_response = MagicMock()
@@ -68,30 +82,33 @@ async def test_fallback_on_tag_la():
     risk_allowed = ["tag_r_allowed"]
     proc_allowed = ["tag_p_allowed"]
     semaphore = asyncio.Semaphore(1)
-    global_state = {"active_idx": 0}
-    models_pool = ["model_1", "model_2"]
+    
+    free_models = ["model_1", "model_2"]
+    rate_limiter = PerModelRateLimiter(free_models, global_interval=0.01)
+    paid_chunks_counter = [0]
 
     success, annotated = await annotate_chunk_core(
         client=mock_client,
         chunk=chunk,
-        idx=0,
+        chunk_position=0,
         action_allowed=action_allowed,
         risk_allowed=risk_allowed,
         proc_allowed=proc_allowed,
         semaphore=semaphore,
+        rate_limiter=rate_limiter,
         api_key="dummy_key",
-        models_pool=models_pool,
-        global_state=global_state,
-        current_cycle=1
+        free_models=free_models,
+        paid_fallback_models=[],
+        use_paid_fallback=False,
+        current_cycle=1,
+        paid_chunks_counter=paid_chunks_counter,
     )
 
-    # Must succeed (pipeline doesn't crash) but fall back to rule-based because of "tag_a_forbidden"
     assert success is True
-    assert annotated["extracted_by"] == "rule_based_fallback"
-    assert annotated["model_used"] is None
-    # "Quy chế đăng ký môn học" rule-based matching yields "course_registration"
-    assert "course_registration" in annotated["policy_area"]
-    assert "register_course" in annotated["action_tags"]
+    assert annotated["extracted_by"] == "llm_annotated"
+    assert annotated["model_used"] == "model_1"
+    assert "tag_a_allowed" in annotated["action_tags"]
+    assert "tag_a_forbidden" not in annotated["action_tags"]
 
 
 @pytest.mark.anyio
@@ -122,30 +139,30 @@ async def test_rate_limit_rotation(mock_sleep):
     risk_allowed = []
     proc_allowed = []
     semaphore = asyncio.Semaphore(1)
-    global_state = {"active_idx": 0}
-    models_pool = ["model_1", "model_2", "model_3"]
+    free_models = ["model_1", "model_2"]
+    rate_limiter = PerModelRateLimiter(free_models, global_interval=0.01)
+    paid_chunks_counter = [0]
     
     success, annotated = await annotate_chunk_core(
         client=mock_client,
         chunk=chunk,
-        idx=0,
+        chunk_position=0,  # starts at model_1
         action_allowed=action_allowed,
         risk_allowed=risk_allowed,
         proc_allowed=proc_allowed,
         semaphore=semaphore,
+        rate_limiter=rate_limiter,
         api_key="dummy_key",
-        models_pool=models_pool,
-        global_state=global_state,
-        current_cycle=1
+        free_models=free_models,
+        paid_fallback_models=[],
+        use_paid_fallback=False,
+        current_cycle=1,
+        paid_chunks_counter=paid_chunks_counter,
     )
     
     assert success is True
-    # The first attempt used model_1 (idx 0), got 429, rotated active_idx to (0+1)%3 = 1.
-    # The second attempt (attempt=1) used index (1+1)%3 = 2 (model_3) and succeeded.
-    # Since model_3 succeeded, model_used should be model_3, and active_idx becomes 2.
-    assert annotated["model_used"] == "model_3"
-    assert annotated["extracted_by"] == "llm_first_pass"
-    assert global_state["active_idx"] == 2
+    assert annotated["model_used"] == "model_2"
+    assert annotated["extracted_by"] == "llm_annotated"
     mock_sleep.assert_called()
 
 
@@ -164,48 +181,37 @@ async def test_fallback_on_network_error(mock_sleep):
     risk_allowed = []
     proc_allowed = []
     semaphore = asyncio.Semaphore(1)
-    global_state = {"active_idx": 0}
-    models_pool = ["model_1", "model_2"]
+    free_models = ["model_1", "model_2"]
+    rate_limiter = PerModelRateLimiter(free_models, global_interval=0.01)
+    paid_chunks_counter = [0]
     
     success, annotated = await annotate_chunk_core(
         client=mock_client,
         chunk=chunk,
-        idx=0,
+        chunk_position=0,
         action_allowed=action_allowed,
         risk_allowed=risk_allowed,
         proc_allowed=proc_allowed,
         semaphore=semaphore,
+        rate_limiter=rate_limiter,
         api_key="dummy_key",
-        models_pool=models_pool,
-        global_state=global_state,
-        current_cycle=1
+        free_models=free_models,
+        paid_fallback_models=[],
+        use_paid_fallback=False,
+        current_cycle=1,
+        paid_chunks_counter=paid_chunks_counter,
     )
     
-    # Must succeed by falling back to rule-based labeling immediately
-    assert success is True
-    assert annotated["extracted_by"] == "rule_based_fallback"
-    assert annotated["model_used"] is None
-    # Tag results match rule-based mapping
-    assert "course_registration" in annotated["policy_area"]
-    assert "graduation" in annotated["policy_area"]
-    assert "register_course" in annotated["action_tags"]
-    assert "graduation_audit" in annotated["action_tags"]
+    # All LLM attempts fail, returns False with original chunk
+    assert success is False
+    assert annotated == chunk
 
 
 @pytest.mark.anyio
-async def test_model_used_tracking():
+async def test_auth_error_propagation():
     mock_client = AsyncMock()
     mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.json.return_value = {
-        "choices": [
-            {
-                "message": {
-                    "content": '{"action_tags": [], "risk_tags": [], "procedure_tags": []}'
-                }
-            }
-        ]
-    }
+    mock_resp.status_code = 401
     mock_client.post.return_value = mock_resp
     
     chunk = {"chunk_id": "chunk_4", "text": "Quy chế"}
@@ -214,25 +220,24 @@ async def test_model_used_tracking():
     proc_allowed = []
     semaphore = asyncio.Semaphore(1)
     
-    # Start with active_idx = 1 (model_2)
-    global_state = {"active_idx": 1}
-    models_pool = ["model_1", "model_2", "model_3"]
+    free_models = ["model_1"]
+    rate_limiter = PerModelRateLimiter(free_models, global_interval=0.01)
+    paid_chunks_counter = [0]
     
-    success, annotated = await annotate_chunk_core(
-        client=mock_client,
-        chunk=chunk,
-        idx=0,
-        action_allowed=action_allowed,
-        risk_allowed=risk_allowed,
-        proc_allowed=proc_allowed,
-        semaphore=semaphore,
-        api_key="dummy_key",
-        models_pool=models_pool,
-        global_state=global_state,
-        current_cycle=2
-    )
-    
-    assert success is True
-    assert annotated["model_used"] == "model_2"
-    assert annotated["extracted_by"] == "llm_first_pass"
-    assert annotated["pipeline_cycle_attempts"] == 2
+    with pytest.raises(AuthError):
+        await annotate_chunk_core(
+            client=mock_client,
+            chunk=chunk,
+            chunk_position=0,
+            action_allowed=action_allowed,
+            risk_allowed=risk_allowed,
+            proc_allowed=proc_allowed,
+            semaphore=semaphore,
+            rate_limiter=rate_limiter,
+            api_key="dummy_key",
+            free_models=free_models,
+            paid_fallback_models=[],
+            use_paid_fallback=False,
+            current_cycle=2,
+            paid_chunks_counter=paid_chunks_counter,
+        )
