@@ -1,32 +1,17 @@
 {
   "domain_id": "ou_academic_policy_v1",
   "domain_name": "OU Academic Policy",
-  "version": "1",
+  "version": "3",
   "language": "vi",
   "institution": "Trường Đại học Mở Thành phố Hồ Chí Minh",
   "fallback_scope_disclaimer": "Sinh viên nên đối chiếu kỹ điều kiện của mình với các căn cứ nêu trên.",
   "current_semester_missing_notice_message": "Dữ liệu hiện có chủ yếu là quy định chung, chưa có thông báo học kỳ hiện tại nên chưa thể kết luận thời hạn cụ thể.",
   "certificate_keywords": [
-    "ielts",
-    "toeic",
-    "toefl",
-    "aptis",
-    "cambridge",
-    "chung chi"
+    "ielts", "toeic", "toefl", "aptis", "cambridge", "chung chi"
   ],
   "current_semester_keywords": [
-    "hoc ky nay",
-    "hoc ky hien tai",
-    "deadline",
-    "thoi han",
-    "han chot",
-    "khi nao",
-    "bao gio",
-    "lich thi",
-    "lich hoc",
-    "hạn đăng ký",
-    "năm học này",
-    "han dang ky",
+    "hoc ky nay", "hoc ky hien tai", "deadline", "thoi han", "han chot",
+    "khi nao", "bao gio", "lich thi", "lich hoc", "han dang ky",
     "nam hoc nay"
   ],
   "document_types": [
@@ -39,11 +24,7 @@
       "issue_type": "graduation",
       "policy_area": "graduation",
       "label": "Quy định về tốt nghiệp",
-      "keywords": [
-        "tot nghiep",
-        "xet tot nghiep",
-        "bang tot nghiep"
-      ],
+      "keywords": ["tot nghiep", "xet tot nghiep", "bang tot nghiep"],
       "query_default": "dieu kien xet tot nghiep",
       "answer_template": "Dựa trên các đoạn tìm được, căn cứ chính là Điều 27 về điều kiện xét tốt nghiệp và công nhận tốt nghiệp. Sinh viên cần đối chiếu các điều kiện được nêu trong điều này, như việc hoàn thành chương trình/tín chỉ, điểm trung bình chung tích lũy và các yêu cầu liên quan khác nếu có trong chương trình. Vui lòng đối chiếu thêm chi tiết tại các tài liệu/căn cứ được liệt kê dưới đây.",
       "missing_information_questions": [
@@ -57,12 +38,8 @@
       "policy_area": "course_exemption",
       "label": "Quy định về miễn giảm môn học và chuyển điểm",
       "keywords": [
-        "mien mon",
-        "giam mon",
-        "bang diem",
-        "da hoc truong khac",
-        "chuyen diem",
-        "ho so mien"
+        "mien mon", "giam mon", "bang diem", "da hoc truong khac",
+        "chuyen diem", "ho so mien"
       ],
       "query_default": "dieu kien xet mien giam mon hoc",
       "query_when": [
@@ -87,24 +64,12 @@
       "issue_type": "foreign_language_requirement",
       "policy_area": "foreign_language_requirement",
       "label": "Quy định về chuẩn ngoại ngữ và miễn tiếng Anh",
-      "keywords": [
-        "tieng anh",
-        "ielts",
-        "toeic",
-        "toefl",
-        "aptis",
-        "cambridge"
-      ],
+      "keywords": ["tieng anh", "ielts", "toeic", "toefl", "aptis", "cambridge"],
       "query_default": "chuan dau ra tieng anh ngoai ngu khong chuyen",
       "query_when": [
         {
           "condition_keywords": [
-            "ielts",
-            "toeic",
-            "toefl",
-            "aptis",
-            "cambridge",
-            "chung chi"
+            "ielts", "toeic", "toefl", "aptis", "cambridge", "chung chi"
           ],
           "query": "xet mien tieng anh chung chi ielts toeic toefl aptis cambridge"
         }
@@ -120,11 +85,7 @@
       "issue_type": "course_registration",
       "policy_area": "course_registration",
       "label": "Quy định về đăng ký môn học và khối lượng học tập",
-      "keywords": [
-        "dang ky mon",
-        "hoc vuot",
-        "khoi luong hoc tap"
-      ],
+      "keywords": ["dang ky mon", "hoc vuot", "khoi luong hoc tap"],
       "query_default": "dang ky mon hoc hoc vuot khoi luong hoc tap",
       "answer_template": "Dựa trên các đoạn tìm được, việc đăng ký môn học và khối lượng học tập cần đối chiếu với các quy định chung của nhà trường. Sinh viên cần kiểm tra kỹ kế hoạch học tập cá nhân và các điều kiện ràng buộc đi kèm trước khi thực hiện đăng ký.",
       "missing_information_questions": [
@@ -136,10 +97,7 @@
       "issue_type": "retake_and_grade_improvement",
       "policy_area": "retake_and_grade_improvement",
       "label": "Quy định về học lại và cải thiện điểm",
-      "keywords": [
-        "hoc lai",
-        "cai thien diem"
-      ],
+      "keywords": ["hoc lai", "cai thien diem"],
       "query_default": "dang ky hoc lai cai thien diem mon hoc",
       "answer_template": "Dựa trên các đoạn tìm được, việc học lại hoặc đăng ký cải thiện điểm số cần đối chiếu với các quy tắc tính điểm hiện hành. Chưa nên khẳng định kết quả cải thiện nếu chưa hoàn thành khóa học lại và có điểm số chính thức được cập nhật.",
       "missing_information_questions": [
@@ -150,11 +108,7 @@
       "issue_type": "academic_standing",
       "policy_area": "academic_standing",
       "label": "Quy định về cảnh báo học tập và buộc thôi học",
-      "keywords": [
-        "canh bao",
-        "hoc luc kem",
-        "buoc thoi hoc"
-      ],
+      "keywords": ["canh bao", "hoc luc kem", "buoc thoi hoc"],
       "query_default": "canh bao ket qua hoc tap buoc thoi hoc",
       "answer_template": "Dựa trên các đoạn tìm được, việc xếp loại học lực kém, cảnh báo học tập hoặc buộc thôi học cần đối chiếu với các điều kiện và số lần vi phạm liên tiếp. Sinh viên cần chủ động theo dõi kết quả rèn luyện và học tập để tránh các rủi ro đáng tiếc.",
       "missing_information_questions": [
@@ -171,6 +125,7 @@
       "missing_information_questions": []
     }
   ],
+
   "action_tags": [
     "register_course",
     "study_ahead",
@@ -195,6 +150,7 @@
     "appeal_grade",
     "calculate_gpa"
   ],
+
   "risk_tags": [
     "missed_registration_deadline",
     "forced_temporary_leave",
@@ -204,6 +160,7 @@
     "zero_score",
     "exam_absence"
   ],
+
   "procedure_tags": [
     "advisor_approval_required",
     "application_required",
@@ -212,5 +169,84 @@
     "syllabus_required",
     "graduation_application_required",
     "appeal_application_required"
+  ],
+
+  "student_status_tags": [
+    "new_student",
+    "first_year_student",
+    "regular_program_student",
+    "high_quality_program_student",
+    "second_degree_student",
+    "transfer_student",
+    "on_academic_warning",
+    "on_second_academic_warning",
+    "on_third_academic_warning",
+    "on_temporary_leave",
+    "student_with_disability",
+    "military_service_student",
+    "student_with_medical_condition",
+    "student_with_certificate_ielts",
+    "student_with_certificate_toeic",
+    "student_with_certificate_toefl",
+    "student_with_certificate_aptis",
+    "student_with_certificate_cambridge",
+    "international_student",
+    "dismissed_student"
+  ],
+
+  "evidence_groups": [
+    "transcript_from_previous_institution",
+    "course_syllabus_from_previous_institution",
+    "language_certificate",
+    "medical_certificate",
+    "military_mobilization_document",
+    "household_registration_document",
+    "personal_id_card",
+    "exemption_application_form",
+    "graduation_application_form",
+    "appeal_application_form",
+    "tuition_payment_receipt",
+    "enrollment_confirmation",
+    "disability_certificate",
+    "family_circumstance_document"
+  ],
+
+  "requirement_tags": [
+    "min_score_5_on_10_scale",
+    "min_score_2_on_4_scale",
+    "min_gpa_2_0",
+    "min_gpa_2_5",
+    "completed_min_credits",
+    "exemption_credit_cap_50_percent",
+    "matching_credit_hours",
+    "matching_course_content",
+    "completed_at_least_one_semester",
+    "passed_english_advanced_5",
+    "english_certificate_valid",
+    "prerequisite_course_completed",
+    "no_outstanding_tuition",
+    "no_disciplinary_action",
+    "within_max_study_duration",
+    "no_forced_dropout_condition",
+    "national_defense_certificate_required",
+    "physical_education_completion_required",
+    "credit_load_limit",
+    "passed_course_grade_improvement",
+    "failed_required_course"
+  ],
+
+  "time_tags": [
+    "start_of_academic_year",
+    "start_of_semester",
+    "within_first_2_weeks_of_semester",
+    "within_first_4_weeks_of_semester",
+    "end_of_semester",
+    "before_final_exam",
+    "during_final_exam_period",
+    "end_of_academic_year",
+    "three_times_per_year",
+    "annually",
+    "per_semester_plan",
+    "certificate_validity_period"
   ]
 }
