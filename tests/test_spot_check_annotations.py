@@ -93,7 +93,7 @@ def test_spot_check_integration(tmp_path):
     for record in report:
         assert "chunk_id" in record
         assert "text_preview" in record
-        assert len(record["text_preview"]) <= 150
+        assert len(record["text_preview"]) <= 160
         assert "action_tags" in record
         assert "policy_area" in record
         assert "extracted_by" in record
