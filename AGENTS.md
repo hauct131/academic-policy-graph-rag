@@ -399,3 +399,12 @@ A task is considered done only when:
 * README or command notes are updated if needed.
 * Generated data is not accidentally committed.
 * The changed files are clearly explained.
+
+## 14. History
+
+Lịch sử phát triển
+
+2026-07-01
+LLM annotation: batch 1 (Jun 2026) không đạt ngưỡng QC (25%), giữ rule-based làm primary cho đến khi có batch mới với prompt đã sửa.
+
+(sẽ được cập nhật trong quá trình phát triển)

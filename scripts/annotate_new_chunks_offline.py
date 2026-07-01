@@ -116,10 +116,8 @@ class AuthError(Exception):
 
 FREE_MODELS = [
     "openai/gpt-oss-120b:free",        # 120B MoE, chất lượng cao nhất
-    "openai/gpt-oss-20b:free",         # 20B, quota riêng, throughput cao
-    "nvidia/nemotron-nano-9b-v2:free", # 9B, quota riêng hoàn toàn
-    "openrouter/free",                 # auto-router, dự phòng khi 3 model
-                                        # trên bị 429 hoặc bị gỡ khỏi catalog
+    "openai/gpt-oss-20b:free"           #  20B, quota riêng, throughput cao
+    
 ]
 
 
@@ -502,6 +500,8 @@ async def annotate_chunk_core(
         "3. Chỉ dùng tag có trong danh mục cho phép bên dưới.\n"
         "4. Trả về mảng rỗng [] nếu không có tag phù hợp cho danh mục đó.\n"
         "5. Phải có đủ 6 keys trong JSON — không được bỏ key nào.\n\n"
+        "6. Chỉ gán tag cho những nội dung được điều khoản NÀY trực tiếp quy định, không gán theo chủ đề của toàn bộ văn bản.\n"
+        "7. Các điều khoản về phạm vi áp dụng, giải thích từ ngữ, hoặc trách nhiệm đơn vị → trả về action_tags: [], policy_area: [] (mảng rỗng).\n"
         f"ACTION TAGS (hành động sinh viên cần thực hiện):\n"
         f"  {json.dumps(action_allowed, ensure_ascii=False)}\n\n"
         f"RISK TAGS (rủi ro/hậu quả nếu vi phạm):\n"

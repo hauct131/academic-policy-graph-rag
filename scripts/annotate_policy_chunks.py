@@ -76,15 +76,22 @@ def annotate_chunk(chunk: dict[str, Any]) -> dict[str, Any]:
 
     # -----------------------------------------------------------------------
     # A. Course registration
+    #
+    # NOTE: "khối lượng học tập" không còn là trigger độc lập nữa (trước ở
+    # đây) vì cụm này quá chung chung — xuất hiện cả trong định nghĩa "tín
+    # chỉ" ở Điều 2 (Giải thích từ ngữ), không liên quan tới thủ tục đăng ký.
+    # Vẫn giữ tín hiệu này nhưng chỉ tính khi đi kèm cụm chỉ rõ giới hạn
+    # khối lượng theo học kỳ/năm học ("mỗi học kỳ", "mỗi năm học") — đúng
+    # ngữ cảnh quy định mức đăng ký tối thiểu/tối đa, không phải câu định
+    # nghĩa chung.
     # -----------------------------------------------------------------------
     if has(
         "đăng ký môn học",
         "đăng ký học phần",
-        "khối lượng học tập",
         "đăng ký muộn",
         "điều chỉnh khối lượng",
         "học vượt",
-    ):
+    ) or (has("khối lượng học tập") and has("mỗi học kỳ", "mỗi năm học")):
         add_unique(policy_area, "course_registration")
         add_unique(action_tags, "register_course")
 
@@ -220,6 +227,13 @@ def annotate_chunk(chunk: dict[str, Any]) -> dict[str, Any]:
 
     # -----------------------------------------------------------------------
     # F. Course exemption / credit transfer
+    #
+    # NOTE: "bảo lưu kết quả" đã bị loại khỏi trigger list (trước ở đây) vì
+    # cụm này đã thuộc rule D (leave_and_withdrawal) — "bảo lưu kết quả học
+    # tập" (giữ kết quả khi tạm nghỉ học) là khái niệm khác hoàn toàn với
+    # "miễn/giảm môn học" (course_exemption). Việc dùng chung trigger phrase
+    # khiến các Điều nói về bảo lưu kết quả (vd. Điều 28, 31) bị gán nhầm
+    # thêm course_exemption dù không liên quan.
     # -----------------------------------------------------------------------
     if has(
         "miễn môn học",
@@ -227,7 +241,6 @@ def annotate_chunk(chunk: dict[str, Any]) -> dict[str, Any]:
         "xét miễn",
         "xét miễn giảm",
         "chuyển điểm",
-        "bảo lưu kết quả",
         "tín chỉ được xét miễn",
     ):
         add_unique(policy_area, "course_exemption")
@@ -265,12 +278,21 @@ def annotate_chunk(chunk: dict[str, Any]) -> dict[str, Any]:
 
     # -----------------------------------------------------------------------
     # G. Foreign language / English (non-major)
+    #
+    # NOTE: "chuẩn đầu vào"/"chuẩn đầu ra" đã bị loại khỏi trigger list ở
+    # đây (trước dùng để gán policy_area) vì đây là thuật ngữ giáo dục đại
+    # học CHUNG, áp dụng cho MỌI chương trình đào tạo (không riêng ngoại
+    # ngữ) — Điều 2 (Giải thích từ ngữ) định nghĩa "Chuẩn đầu ra" như một
+    # khái niệm chung nên bị gán nhầm policy_area="foreign_language_requirement".
+    # Các anchor còn lại trong danh sách dưới đều đủ đặc hiệu (nhắc thẳng
+    # "tiếng anh"/ngoại ngữ) nên không cần "chuẩn đầu vào"/"chuẩn đầu ra"
+    # làm điều kiện kích hoạt độc lập. Bare "đầu vào"/"đầu ra" ở các
+    # sub-tag bên dưới vẫn giữ nguyên vì chỉ chạy SAU KHI outer trigger đã
+    # xác nhận ngữ cảnh ngoại ngữ.
     # -----------------------------------------------------------------------
     if has(
         "ngoại ngữ không chuyên",
         "tiếng anh",
-        "chuẩn đầu vào",
-        "chuẩn đầu ra",
         "tiếng anh dự bị",
         "kỳ thi đánh giá năng lực",
         "chứng chỉ tiếng anh",
