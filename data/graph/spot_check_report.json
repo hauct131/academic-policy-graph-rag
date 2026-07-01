@@ -1,0 +1,191 @@
+[
+  {
+    "chunk_id": "ou_fulltime_credit_training_regulation_2016__dieu_28",
+    "text_preview": "### Điều 28. Cấp bằng tốt nghiệp, bảo lưu kết quả học tập, chuyển chương trình\nđào tạo và chuyển loại hình đào tạo\n1. Bằng tốt nghiệp đại học được...",
+    "action_tags": [
+      "degree_conferral",
+      "reserve_study_results",
+      "request_course_exemption"
+    ],
+    "policy_area": [
+      "course_registration",
+      "retake_and_grade_improvement",
+      "academic_standing",
+      "assessment_and_grading",
+      "graduation",
+      "leave_and_withdrawal"
+    ],
+    "extracted_by": "llm_annotated",
+    "human_verified": false,
+    "notes": "Hallucination nặng: policy_area gán thừa rất nhiều. Chunk thuộc Điều 28 về cấp bằng tốt nghiệp và bảo lưu kết quả → chủ yếu là \"graduation\". action_tags có \"request_course_exemption\" là sai.",
+    "model_used": "openai/gpt-oss-120b:free"
+  },
+  {
+    "chunk_id": "ou_course_exemption_regulation_2023__dieu_6",
+    "text_preview": "### Điều 6. Trình tự, thủ tục xin miễn, giảm môn học\n\n1. Sinh viên nộp hồ sơ xin miễn, giảm môn học tại Phòng Quản lý đào tạo.\n\n2. Phòng Quản lý đào...",
+    "action_tags": [
+      "request_course_exemption",
+      "request_course_reduction"
+    ],
+    "policy_area": [
+      "course_exemption"
+    ],
+    "extracted_by": "llm_annotated",
+    "human_verified": true,
+    "notes": "",
+    "model_used": "openai/gpt-oss-20b:free"
+  },
+  {
+    "chunk_id": "ou_course_exemption_regulation_2023__dieu_1",
+    "text_preview": "### Điều 1. Phạm vi điều chỉnh và đối tượng áp dụng\n\n1. Văn bản này quy định về miễn, giảm môn học cho sinh viên trúng tuyển vào Trường Đại học Mở...",
+    "action_tags": [],
+    "policy_area": [
+      "course_exemption"
+    ],
+    "extracted_by": "llm_annotated",
+    "human_verified": true,
+    "notes": "",
+    "model_used": "openai/gpt-oss-20b:free"
+  },
+  {
+    "chunk_id": "ou_non_major_foreign_language_regulation_2023__dieu_1",
+    "text_preview": "## Điều 1. Phạm vi điều chỉnh và đối tượng áp dụng\n\n1. Văn bản này quy định về đào tạo ngoại ngữ không chuyên thuộc các chương trình đào tạo trình độ...",
+    "action_tags": [],
+    "policy_area": [
+      "foreign_language_requirement",
+      "second_foreign_language_requirement"
+    ],
+    "extracted_by": "llm_annotated",
+    "human_verified": false,
+    "notes": "Sai một phần: Đây là Điều 1 (phạm vi điều chỉnh), chỉ nói về ngoại ngữ không chuyên. Không nên gán \"second_foreign_language_requirement\" vì không đề cập đến ngoại ngữ thứ hai.",
+    "model_used": "openai/gpt-oss-20b:free"
+  },
+  {
+    "chunk_id": "ou_fulltime_credit_training_regulation_2016__dieu_5",
+    "text_preview": "### Điều 5. Sinh viên\n1. Sinh viên chính quy\na) Sinh viên chính quy của một khóa – ngành đào tạo là những thí sinh trúng\ntuyển vào Trường trong kỳ...",
+    "action_tags": [
+      "register_course"
+    ],
+    "policy_area": [
+      "course_registration",
+      "retake_and_grade_improvement",
+      "academic_standing",
+      "assessment_and_grading",
+      "graduation",
+      "leave_and_withdrawal"
+    ],
+    "extracted_by": "llm_annotated",
+    "human_verified": false,
+    "notes": "Hallucination nặng: Đây là Điều 5 về định nghĩa sinh viên (chính quy, dự thính, quyền nghĩa vụ). LLM gán sai gần như toàn bộ policy_area và action_tags.",
+    "model_used": "openai/gpt-oss-20b:free"
+  },
+  {
+    "chunk_id": "ou_fulltime_credit_training_regulation_2016__dieu_3",
+    "text_preview": "### Điều 3. Chương trình đào tạo\n1. Chương trình đào tạo (sau đây gọi là chương trình) thể hiện đầy đủ các nội\ndung: trình độ đào tạo; đối tượng đào...",
+    "action_tags": [],
+    "policy_area": [
+      "course_registration",
+      "retake_and_grade_improvement",
+      "academic_standing",
+      "assessment_and_grading",
+      "graduation",
+      "leave_and_withdrawal"
+    ],
+    "extracted_by": "llm_annotated",
+    "human_verified": false,
+    "notes": "Hallucination nặng: Đây là Điều 3 về Chương trình đào tạo (cấu trúc, khối kiến thức, tín chỉ). LLM gán sai gần như toàn bộ policy_area.",
+    "model_used": "openai/gpt-oss-20b:free"
+  },
+  {
+    "chunk_id": "ou_fulltime_credit_training_regulation_2016__dieu_2",
+    "text_preview": "### Điều 2. Giải thích từ ngữ\nTrong văn bản này, các từ ngữ dưới đây được hiểu như sau:\n1. Tín chỉ là đơn vị tính khối lượng học tập của người...",
+    "action_tags": [],
+    "policy_area": [
+      "course_registration",
+      "retake_and_grade_improvement",
+      "academic_standing",
+      "assessment_and_grading",
+      "graduation",
+      "leave_and_withdrawal"
+    ],
+    "extracted_by": "llm_annotated",
+    "human_verified": false,
+    "notes": "Hallucination nặng: Đây là Điều 2 (Giải thích từ ngữ) — chỉ định nghĩa các khái niệm. LLM gán sai gần như toàn bộ policy_area.",
+    "model_used": "openai/gpt-oss-120b:free"
+  },
+  {
+    "chunk_id": "ou_course_exemption_regulation_2023__dieu_7",
+    "text_preview": "### Điều 7. Thời gian nhận đơn xét miễn, giảm môn học\n\n1. Đối với các môn học trong chương trình đào tạo và môn Tin học văn phòng nâng cao: Sinh viên...",
+    "action_tags": [
+      "request_course_exemption",
+      "request_course_reduction"
+    ],
+    "policy_area": [
+      "course_exemption"
+    ],
+    "extracted_by": "llm_annotated",
+    "human_verified": true,
+    "notes": "",
+    "model_used": "openai/gpt-oss-20b:free"
+  },
+  {
+    "chunk_id": "ou_non_major_foreign_language_regulation_2023__dieu_10",
+    "text_preview": "## Điều 10. Điều khoản thực hiện\n\n1. Quy định này có hiệu lực kể từ ngày ký.\n\n2. Phòng Quản lý đào tạo có trách nhiệm phối hợp với Bộ môn Ngoại ngữ...",
+    "action_tags": [],
+    "policy_area": [
+      "foreign_language_requirement",
+      "second_foreign_language_requirement"
+    ],
+    "extracted_by": "llm_annotated",
+    "human_verified": false,
+    "notes": "Sai một phần: Đây là Điều 10 (Điều khoản thực hiện) - phần kết thúc văn bản. Không nên gán \"second_foreign_language_requirement\" vì không đề cập đến ngoại ngữ thứ hai.",
+    "model_used": "openai/gpt-oss-20b:free"
+  },
+  {
+    "chunk_id": "ou_course_exemption_regulation_2023__dieu_5",
+    "text_preview": "### Điều 5. Hồ sơ xin miễn, giảm môn học\n\nHồ sơ xin miễn, giảm môn học gồm có:\n\n1. Đơn xin miễn môn học hoặc đơn xin giảm học phần thực hành môn Giáo...",
+    "action_tags": [
+      "request_course_exemption",
+      "request_course_reduction"
+    ],
+    "policy_area": [
+      "course_exemption"
+    ],
+    "extracted_by": "llm_annotated",
+    "human_verified": true,
+    "notes": "",
+    "model_used": "openai/gpt-oss-20b:free"
+  },
+  {
+    "chunk_id": "ou_fulltime_credit_training_regulation_2016__dieu_31",
+    "text_preview": "### Điều 31. Trách nhiệm của các đơn vị trong Trường\n1. Các Khoa\na) Xây dựng chuẩn đầu ra, thiết kế chi tiết chương trình, đề cương môn học và\nthường...",
+    "action_tags": [],
+    "policy_area": [
+      "course_registration",
+      "retake_and_grade_improvement",
+      "academic_standing",
+      "assessment_and_grading",
+      "graduation",
+      "leave_and_withdrawal"
+    ],
+    "extracted_by": "llm_annotated",
+    "human_verified": false,
+    "notes": "Hallucination nặng: Đây là Điều 31 về trách nhiệm của các đơn vị (Khoa, Bộ môn, Phòng QLĐT). LLM gán sai gần như toàn bộ policy_area.",
+    "model_used": "openai/gpt-oss-20b:free"
+  },
+  {
+    "chunk_id": "ou_non_major_foreign_language_regulation_2023__dieu_5",
+    "text_preview": "## Điều 5. Tiếng Anh và chuẩn đầu ra tiếng Anh\n\n### 1. Chương trình đại trà\n\na) Tiếng Anh dành cho sinh viên chương trình đại trà gồm 5 cấp độ từ...",
+    "action_tags": [
+      "take_final_exam"
+    ],
+    "policy_area": [
+      "foreign_language_requirement",
+      "second_foreign_language_requirement"
+    ],
+    "extracted_by": "llm_annotated",
+    "human_verified": false,
+    "notes": "Sai hai phần: Đây là Điều 5 về Tiếng Anh và chuẩn đầu ra. Không nên gán \"second_foreign_language_requirement\". action_tags \"take_final_exam\" cũng không phù hợp.",
+    "model_used": "openai/gpt-oss-20b:free"
+  }
+]
